@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>2P Sudoku</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'game/styles.css' %}">
+  </head>
+  <body>
+    <header>
+      {% if user.is_authenticated %}
+        Logged in as {{ user.username }} | <a href="{% url 'logout' %}">Logout</a>
+      {% else %}
+        <a href="{% url 'login' %}">Login</a> | <a href="{% url 'register' %}">Register</a>
+      {% endif %}
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

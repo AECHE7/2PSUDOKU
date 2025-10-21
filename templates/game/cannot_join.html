@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Cannot Join Game</h2>
+<p>You cannot join this game. It is either full or already in progress.</p>
+<p><a href="{% url 'index' %}">Return to lobby</a></p>
+{% endblock %}

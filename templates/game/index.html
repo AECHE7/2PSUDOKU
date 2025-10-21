@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<h1>2P Sudoku</h1>
+
+<section>
+  <h2>Create a New Game</h2>
+  <a href="{% url 'create_game' %}" class="btn btn-primary">Create Game</a>
+</section>
+
+<section>
+  <h2>Join a Waiting Game</h2>
+  {% if games %}
+    <ul>
+      {% for game in games %}
+        <li>
+          <a href="{% url 'game_detail' game.code %}">{{ game.code }} - Created by {{ game.player1.username }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No games waiting for players.</p>
+  {% endif %}
+</section>
+
+<script src="{% static 'game/game.js' %}"></script>
+{% endblock %}

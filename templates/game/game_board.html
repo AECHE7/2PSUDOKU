@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<h1>Sudoku Game: {{ game.code }}</h1>
+
+<div class="game-info">
+  <p>Player 1: <strong>{{ game.player1.username }}</strong></p>
+  {% if game.player2 %}
+    <p>Player 2: <strong>{{ game.player2.username }}</strong></p>
+  {% else %}
+    <p>Player 2: <em>Waiting...</em></p>
+  {% endif %}
+  <p>Status: <strong>{{ game.get_status_display }}</strong></p>
+  <p>Current Turn: <strong id="current-turn">{% if game.current_turn %}{{ game.current_turn.username }}{% endif %}</strong></p>
+</div>
+
+<div id="game-container">
+  <table class="sudoku-grid">
+    <tbody>
+      {% for row in game.board.current %}
+        <tr>
+          {% for cell in row %}
+            <td class="sudoku-cell" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
+              <input type="number" min="1" max="9" class="cell-input" 
+                {% if cell != 0 %}value="{{ cell }}" disabled{% endif %}>
+            </td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="messages"></div>
+
+<script src="{% static 'game/game_board.js' %}"></script>
+<script>
+  const gameCode = '{{ game.code }}';
+  const playerId = {{ user.id }};
+  const isPlayer1 = {% if is_player1 %}true{% else %}false{% endif %};
+  const isPlayer2 = {% if is_player2 %}true{% else %}false{% endif %};
+</script>
+{% endblock %}

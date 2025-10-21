@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Game Not Found</h2>
+<p>The game with code <strong>{{ code }}</strong> does not exist.</p>
+<p><a href="{% url 'index' %}">Return to lobby</a></p>
+{% endblock %}
