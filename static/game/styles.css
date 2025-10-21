@@ -157,3 +157,49 @@ section a:hover {
   margin: 0.5rem 0;
 }
 
+.game-info .highlight {
+  color: #007bff;
+  font-weight: bold;
+}
+
+#messages {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.message {
+  padding: 8px;
+  border: 1px solid #ddd;
+  margin-top: 4px;
+  border-radius: 3px;
+  background-color: #f9f9f9;
+  font-size: 0.9rem;
+}
+
+.message.error {
+  background-color: #fee;
+  color: #c00;
+  border-color: #f00;
+}
+
+.cell-input.prefilled {
+  background-color: #f0f0f0;
+  color: #333;
+  cursor: not-allowed;
+}
+
+.cell-input:enabled:not(.prefilled) {
+  background-color: #fff;
+  cursor: cell;
+}
+
+.cell-input:enabled:not(.prefilled).active {
+  background-color: #e3f2fd;
+  outline: 2px solid #007bff;
+}
+
+.cell-input:enabled:not(.prefilled):focus {
+  outline: 2px solid #007bff;
+  background-color: #e3f2fd;
+}
+

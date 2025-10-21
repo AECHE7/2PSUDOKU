@@ -5,31 +5,39 @@
 <h1>Sudoku Game: {{ game.code }}</h1>
 
 <div class="game-info">
-  <p>Player 1: <strong>{{ game.player1.username }}</strong></p>
+  <p>Player 1: <strong class="{% if is_player1 %}highlight{% endif %}">{{ game.player1.username }}</strong></p>
   {% if game.player2 %}
-    <p>Player 2: <strong>{{ game.player2.username }}</strong></p>
+    <p>Player 2: <strong class="{% if is_player2 %}highlight{% endif %}">{{ game.player2.username }}</strong></p>
   {% else %}
     <p>Player 2: <em>Waiting...</em></p>
   {% endif %}
   <p>Status: <strong>{{ game.get_status_display }}</strong></p>
-  <p>Current Turn: <strong id="current-turn">{% if game.current_turn %}{{ game.current_turn.username }}{% endif %}</strong></p>
+  <p>Current Turn: <strong id="current-turn">{% if game.current_turn %}{{ game.current_turn.username }}{% else %}Pending{% endif %}</strong></p>
+  <p>Your Role: <strong id="your-role">{% if is_player1 %}Player 1{% elif is_player2 %}Player 2{% else %}Spectator{% endif %}</strong></p>
 </div>
 
 <div id="game-container">
-  <table class="sudoku-grid">
-    <tbody>
-      {% for row in board %}
-        <tr>
-          {% for cell in row %}
-            <td class="sudoku-cell" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
-              <input type="number" min="1" max="9" class="cell-input" 
-                {% if cell != 0 %}value="{{ cell }}" disabled{% endif %}>
-            </td>
-          {% endfor %}
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% if board %}
+    <table class="sudoku-grid">
+      <tbody>
+        {% for row in board %}
+          <tr>
+            {% for cell in row %}
+              <td class="sudoku-cell" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
+                {% if cell != 0 %}
+                  <input type="number" min="1" max="9" class="cell-input prefilled" value="{{ cell }}" disabled>
+                {% else %}
+                  <input type="number" min="1" max="9" class="cell-input">
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="error">Unable to load board. Refreshing...</p>
+  {% endif %}
 </div>
 
 <div id="messages"></div>

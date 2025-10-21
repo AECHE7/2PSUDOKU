@@ -4,11 +4,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const ws = new WebSocket(wsUrl);
   
   const messageDiv = document.getElementById('messages');
-  const cellInputs = document.querySelectorAll('.cell-input');
+  let cellInputs = document.querySelectorAll('.cell-input');
+  let currentTurnPlayerId = currentPlayerId;
   
   ws.onopen = () => {
     console.log('WebSocket connected');
     addMessage('Connected to game server');
+    updateInputDisabledState();
     
     // Send join message
     ws.send(JSON.stringify({
@@ -31,6 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
       updateCellDisplay(data.row, data.col, data.value);
     } else if (data.type === 'board') {
       updateBoardFromState(data.board);
+    } else if (data.type === 'current_turn_updated') {
+      currentTurnPlayerId = data.player_id;
+      addMessage(`${data.username}'s turn`);
+      updateInputDisabledState();
     } else if (data.error) {
       addMessage(`Error: ${data.error}`, 'error');
     }
@@ -47,22 +53,35 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   
   // Handle cell input
-  cellInputs.forEach(input => {
-    input.addEventListener('change', (e) => {
-      const cell = e.target.closest('.sudoku-cell');
-      const row = parseInt(cell.dataset.row);
-      const col = parseInt(cell.dataset.col);
-      const value = parseInt(e.target.value);
-      
-      if (value && value >= 1 && value <= 9) {
-        ws.send(JSON.stringify({
-          type: 'move',
-          row: row,
-          col: col,
-          value: value,
-        }));
-      }
-    });
+  document.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('cell-input')) return;
+    if (e.target.disabled) return;
+    
+    // Check if it's player's turn
+    if (currentTurnPlayerId !== playerId) {
+      addMessage('It is not your turn!', 'error');
+      e.target.value = '';
+      return;
+    }
+    
+    const cell = e.target.closest('.sudoku-cell');
+    if (!cell) return;
+    
+    const row = parseInt(cell.dataset.row);
+    const col = parseInt(cell.dataset.col);
+    const value = parseInt(e.target.value);
+    
+    if (value && value >= 1 && value <= 9) {
+      ws.send(JSON.stringify({
+        type: 'move',
+        row: row,
+        col: col,
+        value: value,
+      }));
+    } else if (e.target.value === '') {
+      // Allow clearing, but don't send empty move
+      return;
+    }
   });
   
   // Request current board state
@@ -79,13 +98,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   function updateBoardFromState(board) {
+    cellInputs = document.querySelectorAll('.cell-input');
     cellInputs.forEach((input, index) => {
       const row = Math.floor(index / 9);
       const col = index % 9;
-      const value = board[row][col];
+      const value = board[row] ? board[row][col] : 0;
       if (value !== 0) {
         input.value = value;
         input.disabled = true;
+        input.classList.add('prefilled');
       }
     });
   }
@@ -96,5 +117,22 @@ document.addEventListener('DOMContentLoaded', () => {
       input.value = value;
       input.disabled = true;
     }
+  }
+  
+  function updateInputDisabledState() {
+    cellInputs = document.querySelectorAll('.cell-input');
+    const isMyTurn = currentTurnPlayerId === playerId;
+    
+    cellInputs.forEach(input => {
+      // Don't override prefilled cells
+      if (!input.classList.contains('prefilled')) {
+        input.disabled = !isMyTurn;
+        if (isMyTurn) {
+          input.classList.add('active');
+        } else {
+          input.classList.remove('active');
+        }
+      }
+    });
   }
 });

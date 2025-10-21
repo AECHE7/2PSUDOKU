@@ -101,8 +101,14 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({'error': 'Game not found'}))
             return
         
+        # Check if it's this player's turn
+        if game.current_turn.id != self.user.id:
+            await self.send(text_data=json.dumps({'error': 'Not your turn'}))
+            return
+        
         # Validate move server-side
-        puzzle = SudokuPuzzle(json.loads(json.dumps(game.board.get('current', [[0]*9]*9))))
+        current_board = game.board.get('current', [])
+        puzzle = SudokuPuzzle.from_dict({'board': current_board})
         if not puzzle.is_valid_placement(row, col, value):
             await self.send(text_data=json.dumps({'error': 'Invalid move'}))
             return
@@ -111,10 +117,15 @@ class GameConsumer(AsyncWebsocketConsumer):
         move = await self.create_move(game, self.user, row, col, value)
         
         # Update board state
-        new_board = game.board.get('current', [[0]*9]*9)
+        new_board = [list(row) for row in game.board.get('current', [])]
         new_board[row][col] = value
         game.board['current'] = new_board
         await self.update_game_board(game, new_board)
+        
+        # Switch current turn
+        next_player = game.player2 if game.current_turn.id == game.player1.id else game.player1
+        game.current_turn = next_player
+        await self.update_game_turn(game, next_player)
         
         # Broadcast the move to all players
         await self.channel_layer.group_send(
@@ -125,6 +136,8 @@ class GameConsumer(AsyncWebsocketConsumer):
                 'row': row,
                 'col': col,
                 'value': value,
+                'next_player_id': next_player.id,
+                'next_player_username': next_player.username,
             }
         )
     
@@ -162,6 +175,13 @@ class GameConsumer(AsyncWebsocketConsumer):
             'col': event['col'],
             'value': event['value'],
         }))
+        
+        # Send turn update
+        await self.send(text_data=json.dumps({
+            'type': 'current_turn_updated',
+            'player_id': event['next_player_id'],
+            'username': event['next_player_username'],
+        }))
     
     # Database operations
     @database_sync_to_async
@@ -172,15 +192,15 @@ class GameConsumer(AsyncWebsocketConsumer):
             code=code,
             defaults={
                 'player1': self.user,
-                'board': {'puzzle': [[0]*9]*9, 'current': [[0]*9]*9},
+                'board': {'puzzle': [], 'current': []},
             }
         )
         if created:
             # Generate a puzzle
             puzzle = SudokuPuzzle.generate_puzzle('medium')
             game.board = {
-                'puzzle': puzzle.board,
-                'current': [row[:] for row in puzzle.board],
+                'puzzle': [list(row) for row in puzzle.board],
+                'current': [list(row) for row in puzzle.board],
             }
             game.current_turn = game.player1
             game.save()
@@ -217,11 +237,19 @@ class GameConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def update_game_board(self, game, new_board):
         """Update the game board state."""
-        game.board['current'] = new_board
+        game.board['current'] = [list(row) for row in new_board]
+        game.save()
+    
+    @database_sync_to_async
+    def update_game_turn(self, game, next_player):
+        """Update whose turn it is."""
+        game.current_turn = next_player
         game.save()
     
     @database_sync_to_async
     def get_board_state(self, game):
         """Get the current board state."""
-        return game.board.get('current', [[0]*9]*9)
+        board = game.board.get('current', [])
+        # Ensure it's a list of lists, not a reference issue
+        return [list(row) if isinstance(row, (list, tuple)) else row for row in board]
 
