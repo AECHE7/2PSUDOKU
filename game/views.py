@@ -84,6 +84,7 @@ def game_detail(request, code):
     
     return render(request, 'game/game_board.html', {
         'game': game,
+        'board': game.board.get('current', []),
         'is_player1': is_player1,
         'is_player2': is_player2,
     })
