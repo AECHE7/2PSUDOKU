@@ -1,0 +1,27 @@
+{% extends 'game/base.html' %}
+
+{% block title %}Game History - 2-Player Sudoku{% endblock %}
+
+{% block content %}
+<div class="history-container">
+    <h1>Game History</h1>
+    
+    {% if games %}
+        <div class="games-list">
+            {% for game in games %}
+                <div class="game-card">
+                    <h3>Game {{ game.session_code }}</h3>
+                    <p><strong>Players:</strong> {{ game.player1.username }} vs {{ game.player2.username }}</p>
+                    <p><strong>Final Score:</strong> {{ game.player1_score }} - {{ game.player2_score }}</p>
+                    <p><strong>Winner:</strong> {{ game.winner.username|default:"Draw" }}</p>
+                    <p><strong>Completed:</strong> {{ game.completed_at|date:"M d, Y H:i" }}</p>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="empty-state">No completed games yet. Start playing to build your history!</p>
+    {% endif %}
+    
+    <a href="{% url 'lobby' %}" class="btn btn-primary">Back to Lobby</a>
+</div>
+{% endblock %}

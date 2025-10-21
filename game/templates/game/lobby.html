@@ -1,0 +1,74 @@
+{% extends 'game/base.html' %}
+
+{% block title %}Game Lobby - 2-Player Sudoku{% endblock %}
+
+{% block content %}
+<div class="lobby-container">
+    <h1>Game Lobby</h1>
+    
+    <div class="lobby-actions">
+        <a href="{% url 'create_game' %}" class="btn btn-primary">Create New Game</a>
+    </div>
+    
+    <div class="lobby-section">
+        <h2>Your Active Games</h2>
+        {% if user_games %}
+            <div class="games-list">
+                {% for game in user_games %}
+                    <div class="game-card">
+                        <h3>Game {{ game.session_code }}</h3>
+                        <p><strong>Status:</strong> {{ game.get_status_display }}</p>
+                        <p><strong>Player 1:</strong> {{ game.player1.username }}</p>
+                        <p><strong>Player 2:</strong> {{ game.player2.username|default:"Waiting..." }}</p>
+                        {% if game.status == 'waiting' %}
+                            <p class="share-code">Share Code: <strong>{{ game.session_code }}</strong></p>
+                        {% endif %}
+                        <a href="{% url 'game_room' game.session_code %}" class="btn btn-secondary">
+                            {% if game.status == 'waiting' %}Wait for Player{% else %}Continue Game{% endif %}
+                        </a>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="empty-state">You have no active games. Create one to get started!</p>
+        {% endif %}
+    </div>
+    
+    <div class="lobby-section">
+        <h2>Available Games</h2>
+        {% if waiting_games %}
+            <div class="games-list">
+                {% for game in waiting_games %}
+                    <div class="game-card">
+                        <h3>Game {{ game.session_code }}</h3>
+                        <p><strong>Created by:</strong> {{ game.player1.username }}</p>
+                        <p><strong>Created:</strong> {{ game.created_at|date:"M d, Y H:i" }}</p>
+                        <a href="{% url 'join_game' game.session_code %}" class="btn btn-primary">Join Game</a>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="empty-state">No games available. Create a new game!</p>
+        {% endif %}
+    </div>
+    
+    <div class="lobby-section">
+        <h2>Join with Code</h2>
+        <form method="get" action="" class="join-form" onsubmit="return joinWithCode(event)">
+            <input type="text" id="join_code" placeholder="Enter game code" class="form-input">
+            <button type="submit" class="btn btn-secondary">Join</button>
+        </form>
+    </div>
+</div>
+
+<script>
+function joinWithCode(event) {
+    event.preventDefault();
+    const code = document.getElementById('join_code').value.trim();
+    if (code) {
+        window.location.href = `/join/${code}/`;
+    }
+    return false;
+}
+</script>
+{% endblock %}
