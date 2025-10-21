@@ -42,11 +42,15 @@
 
 <div id="messages"></div>
 
+<div id="game-data" 
+  data-game-code="{{ game.code }}"
+  data-player-id="{{ user.id }}"
+  data-player1-id="{{ game.player1.id }}"
+  data-player2-id="{{ game.player2.id|default:'' }}"
+  data-current-player-id="{{ game.current_turn.id|default:'' }}"
+  data-is-player1="{% if is_player1 %}true{% else %}false{% endif %}"
+  data-is-player2="{% if is_player2 %}true{% else %}false{% endif %}"
+  style="display: none;"></div>
+
 <script src="{% static 'game/game_board.js' %}"></script>
-<script>
-  const gameCode = '{{ game.code }}';
-  const playerId = {{ user.id }};
-  const isPlayer1 = {% if is_player1 %}true{% else %}false{% endif %};
-  const isPlayer2 = {% if is_player2 %}true{% else %}false{% endif %};
-</script>
 {% endblock %}

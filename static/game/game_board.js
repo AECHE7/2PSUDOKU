@@ -1,4 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // Read configuration from data attributes
+  const gameDataEl = document.getElementById('game-data');
+  const gameCode = gameDataEl.dataset.gameCode;
+  const playerId = parseInt(gameDataEl.dataset.playerId);
+  const player1Id = parseInt(gameDataEl.dataset.player1Id);
+  const player2Id = gameDataEl.dataset.player2Id ? parseInt(gameDataEl.dataset.player2Id) : null;
+  const isPlayer1 = gameDataEl.dataset.isPlayer1 === 'true';
+  const isPlayer2 = gameDataEl.dataset.isPlayer2 === 'true';
+  let currentPlayerId = gameDataEl.dataset.currentPlayerId ? parseInt(gameDataEl.dataset.currentPlayerId) : null;
+  
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const wsUrl = `${proto}://${window.location.host}/ws/game/${gameCode}/`;
   const ws = new WebSocket(wsUrl);
