@@ -83,6 +83,14 @@ CHANNEL_LAYERS = {
     },
 }
 
+# For testing without Redis, use in-memory channel layer
+# Uncomment below and comment out above if Redis is not available
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels.layers.InMemoryChannelLayer',
+#     },
+# }
+
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
@@ -131,6 +139,7 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Login settings
 LOGIN_URL = 'login'
