@@ -18,8 +18,8 @@ python manage.py collectstatic --noinput
 echo "🗃️ Running database migrations..."
 python manage.py migrate --noinput
 
-# Create cache table for sessions (if needed)
-echo "🔄 Setting up cache tables..."
-python manage.py createcachetable 2>/dev/null || echo "Cache table setup skipped"
+# Test Django setup
+echo "� Testing Django configuration..."
+python manage.py check --deploy
 
 echo "✅ Build complete!"
