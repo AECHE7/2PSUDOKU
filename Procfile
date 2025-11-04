@@ -1,2 +1,2 @@
-web: daphne -p $PORT -b 0.0.0.0 -v2 config.asgi:application
+web: ./scripts/entrypoint.sh
 worker: python manage.py runworker channels
