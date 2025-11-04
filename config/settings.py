@@ -4,7 +4,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / '.env')
+
+# Load .env file only if it exists (for local development)
+env_file = BASE_DIR / '.env'
+if env_file.exists():
+    load_dotenv(env_file)
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-secret-change-in-production')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
@@ -58,7 +62,7 @@ ASGI_APPLICATION = 'config.asgi.application'
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
     DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL)
+        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
     }
 else:
     DATABASES = {
@@ -77,7 +81,11 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+
+# Only add STATICFILES_DIRS if the static directory exists
+static_dir = BASE_DIR / 'static'
+if static_dir.exists():
+    STATICFILES_DIRS = [static_dir]
 
 # Static file storage for production
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
@@ -86,11 +94,19 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Channels / Redis
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+
+# Parse Redis URL for Channels
+import urllib.parse
+redis_url = urllib.parse.urlparse(REDIS_URL)
+
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [REDIS_URL],
+            'hosts': [{
+                'address': (redis_url.hostname, redis_url.port),
+                'password': redis_url.password,
+            }] if redis_url.password else [REDIS_URL],
         },
     },
 }
@@ -106,3 +122,7 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     X_FRAME_OPTIONS = 'DENY'
+    
+    # Additional security headers
+    SECURE_REFERRER_POLICY = 'same-origin'
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
