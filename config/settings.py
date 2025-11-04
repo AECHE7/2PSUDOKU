@@ -115,10 +115,13 @@ CHANNEL_LAYERS = {
 if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_REDIRECT_EXEMPT = []
-    SECURE_SSL_REDIRECT = True
+    
+    # Render handles SSL termination, so we don't need these redirect settings
+    # SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    # SECURE_HSTS_SECONDS = 31536000
+    # SECURE_SSL_REDIRECT = True  # This was causing the redirect loop!
+    
+    # Only secure cookies if we're definitely on HTTPS (Render handles this)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     X_FRAME_OPTIONS = 'DENY'
@@ -126,3 +129,6 @@ if not DEBUG:
     # Additional security headers
     SECURE_REFERRER_POLICY = 'same-origin'
     SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+    
+    # Trust Render's proxy headers
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
