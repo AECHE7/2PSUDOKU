@@ -13,6 +13,12 @@ if env_file.exists():
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-secret-change-in-production')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
 
+# For debugging: temporarily enable DEBUG in production to see error details
+# Remove this after fixing the issue
+if not DEBUG and os.environ.get('RENDER'):
+    DEBUG = True
+    print("DEBUG temporarily enabled for Render deployment debugging")
+
 ALLOWED_HOSTS = ['*'] if DEBUG else os.environ.get('ALLOWED_HOSTS', 'localhost').split(',')
 
 INSTALLED_APPS = [
@@ -61,10 +67,16 @@ ASGI_APPLICATION = 'config.asgi.application'
 # Database configuration
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
-    DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
-    }
+    print(f"Using PostgreSQL database: {DATABASE_URL[:50]}...")  # Debug log
+    try:
+        DATABASES = {
+            'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
+        }
+    except Exception as e:
+        print(f"Database configuration error: {e}")
+        raise
 else:
+    print("Using SQLite database for development")
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -92,24 +104,56 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Logging configuration for debugging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
 # Channels / Redis
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+print(f"Using Redis URL: {REDIS_URL}")  # Debug log
 
 # Parse Redis URL for Channels
 import urllib.parse
 redis_url = urllib.parse.urlparse(REDIS_URL)
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [{
-                'address': (redis_url.hostname, redis_url.port),
-                'password': redis_url.password,
-            }] if redis_url.password else [REDIS_URL],
+try:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [{
+                    'address': (redis_url.hostname, redis_url.port),
+                    'password': redis_url.password,
+                }] if redis_url.password else [REDIS_URL],
+            },
         },
-    },
-}
+    }
+    print("Redis channel layers configured successfully")
+except Exception as e:
+    print(f"Redis configuration error: {e}")
+    # Fallback to in-memory channel layer for debugging
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
 
 # Production security settings
 if not DEBUG:
