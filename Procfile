@@ -1,3 +1,2 @@
-release: python migrate_comprehensive.py
-web: python migrate_comprehensive.py && daphne -p $PORT -b 0.0.0.0 config.asgi:application
+web: ./start_server.sh
 worker: python manage.py runworker channels

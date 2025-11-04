@@ -150,6 +150,13 @@ def main():
     print("🚀 Comprehensive Django Migration Script Started")
     print(f"📅 Time: {os.popen('date').read().strip()}")
     print(f"🏠 Working directory: {os.getcwd()}")
+    print(f"🔍 Directory contents: {os.listdir('.')}")
+    
+    # Ensure we have manage.py
+    if not os.path.exists('manage.py'):
+        print("❌ manage.py not found! Current directory contents:")
+        print(os.listdir('.'))
+        sys.exit(1)
     
     # Setup Django
     setup_django()

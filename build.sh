@@ -18,4 +18,8 @@ python manage.py collectstatic --noinput
 echo "🔧 Testing Django configuration..."
 python manage.py check
 
+# Try to run migrations during build (may fail if DB not available, that's OK)
+echo "🗃️ Attempting migrations during build (fallback)..."
+python migrate_comprehensive.py || echo "⚠️ Build-time migrations failed (expected if DB not available yet)"
+
 echo "✅ Build complete!"
