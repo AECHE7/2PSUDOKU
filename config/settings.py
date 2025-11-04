@@ -21,6 +21,24 @@ if not DEBUG and os.environ.get('RENDER'):
 
 ALLOWED_HOSTS = ['*'] if DEBUG else os.environ.get('ALLOWED_HOSTS', 'localhost').split(',')
 
+# CSRF trusted origins for Render deployment
+CSRF_TRUSTED_ORIGINS = [
+    'https://twopsudoku.onrender.com',
+    'https://*.onrender.com',  # Allow any Render subdomain
+]
+
+# Add additional trusted origins from environment if specified
+additional_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+if additional_origins:
+    CSRF_TRUSTED_ORIGINS.extend(additional_origins.split(','))
+
+# Additional CSRF settings for production
+if not DEBUG:
+    CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_HTTPONLY = True
+    CSRF_USE_SESSIONS = False
+    CSRF_COOKIE_SAMESITE = 'Lax'
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
