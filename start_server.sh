@@ -5,9 +5,9 @@ set -o pipefail
 echo "🚀 Starting production server with migrations..."
 echo "📅 Time: $(date)"
 
-# Run comprehensive migrations first
-echo "🗃️ Running comprehensive migrations..."
-python migrate_comprehensive.py
+# Run comprehensive race-mode migrations first
+echo "🗃️ Running comprehensive race-mode migrations..."
+python migrate_race_mode.py
 
 if [ $? -eq 0 ]; then
     echo "✅ Migrations completed successfully!"
