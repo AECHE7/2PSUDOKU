@@ -217,6 +217,12 @@ class GameConsumer(AsyncWebsocketConsumer):
             'value': event['value'],
             'player_id': event.get('player_id'),
         }))
+
+    async def notification(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'notification',
+            'message': event['message'],
+        }))
         
 
 
