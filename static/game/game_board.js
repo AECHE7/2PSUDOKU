@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    console.log('Received:', data);
+    console.log('WebSocket message received:', data);
     
     if (data.type === 'notification') {
       addMessage(data.message);
@@ -210,7 +210,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // After each input, check if puzzle is complete and auto-submit
-    if (isLocalBoardComplete() && isLocalBoardValid()) {
+    const isComplete = isLocalBoardComplete();
+    const isValid = isLocalBoardValid();
+    console.log('Board check:', { isComplete, isValid });
+    
+    if (isComplete && isValid) {
+      console.log('Auto-submitting solution...');
       autoSubmitSolution();
     }
   });
@@ -260,13 +265,23 @@ document.addEventListener('DOMContentLoaded', () => {
   // Finish button (kept for manual submission if needed)
   const finishBtn = document.getElementById('finish-btn');
   if (finishBtn) {
+    // Make finish button visible initially
+    finishBtn.style.display = 'inline-block';
+    
     finishBtn.addEventListener('click', () => {
-      if (!gameFinished && isLocalBoardComplete() && isLocalBoardValid()) {
+      console.log('Finish button clicked');
+      const isComplete = isLocalBoardComplete();
+      const isValid = isLocalBoardValid();
+      console.log('Manual finish check:', { isComplete, isValid, gameFinished });
+      
+      if (!gameFinished && isComplete && isValid) {
         autoSubmitSolution();
-      } else if (!isLocalBoardComplete()) {
+      } else if (!isComplete) {
         addMessage('Please complete the puzzle before submitting!', 'error');
-      } else if (!isLocalBoardValid()) {
+      } else if (!isValid) {
         addMessage('Please fix the errors in your solution!', 'error');
+      } else if (gameFinished) {
+        addMessage('Game already finished!', 'info');
       }
     });
   }
@@ -392,6 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function autoSubmitSolution() {
     if (gameFinished) return; // Prevent multiple submissions
     
+    console.log('Auto-submitting solution!');
     gameFinished = true;
     addMessage('🎉 Puzzle completed! Submitting solution...', 'success');
     
@@ -405,7 +421,13 @@ document.addEventListener('DOMContentLoaded', () => {
     disableAllInputs();
     
     // Submit the solution
-    safeSend({ type: 'complete' });
+    const success = safeSend({ type: 'complete' });
+    console.log('Complete message sent:', success);
+    
+    if (!success) {
+      addMessage('❌ Failed to submit solution. Check connection.', 'error');
+      gameFinished = false; // Allow retry
+    }
   }
 
   function disableAllInputs() {
@@ -447,9 +469,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showWinnerModal(data, isWinner) {
+    console.log('Showing winner modal:', { data, isWinner });
     const modal = document.getElementById('winner-modal');
     const winnerContent = document.getElementById('winner-content');
     const gameStats = document.getElementById('game-stats');
+    
+    if (!modal) {
+      console.error('Winner modal element not found!');
+      return;
+    }
     
     // Populate winner content
     if (isWinner) {
@@ -482,8 +510,24 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     
     // Show modal
-    const bootstrapModal = new bootstrap.Modal(modal);
-    bootstrapModal.show();
+    try {
+      if (typeof bootstrap !== 'undefined') {
+        const bootstrapModal = new bootstrap.Modal(modal);
+        bootstrapModal.show();
+        console.log('Bootstrap modal shown');
+      } else {
+        console.error('Bootstrap not loaded!');
+        // Fallback: show modal manually
+        modal.style.display = 'block';
+        modal.classList.add('show');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+      }
+    } catch (error) {
+      console.error('Error showing modal:', error);
+      // Simple fallback
+      alert(`Game Over! ${isWinner ? 'You won!' : data.winner_username + ' won!'}`);
+    }
   }
 
   function formatTime(timeString) {
@@ -763,21 +807,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Enhanced board state management
   function updateBoardFromState(board, isOpponent = false) {
+    console.log('Updating board state:', { board, isOpponent });
     const targetBoard = isOpponent ? document.getElementById('opponent-board') : document.getElementById('player-board');
-    if (!targetBoard) return;
+    if (!targetBoard) {
+      console.error('Target board not found:', isOpponent ? 'opponent-board' : 'player-board');
+      return;
+    }
     
     const cellInputs = targetBoard.querySelectorAll('.cell-input');
+    console.log('Found cells:', cellInputs.length);
     
     cellInputs.forEach((input, index) => {
       const row = Math.floor(index / 9);
       const col = index % 9;
       const value = board[row] ? board[row][col] : 0;
       
-      if (value !== 0 && !input.classList.contains('prefilled')) {
-        input.value = value;
-        input.classList.add('filled');
-        if (isOpponent) {
-          input.classList.add('opponent-move');
+      if (value !== 0) {
+        // Always update the display value, regardless of prefilled status for opponent board
+        if (isOpponent || !input.classList.contains('prefilled')) {
+          input.value = value;
+          input.classList.add('filled');
+          if (isOpponent) {
+            input.classList.add('opponent-move');
+          }
         }
       }
     });
