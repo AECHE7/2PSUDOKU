@@ -22,7 +22,7 @@ from .messages import (
     CountdownMessage, RaceCountdownMessage, RaceStartedMessage,
     GameStateMessage, PuzzleCompleteMessage
 )
-from .game_state import GameStateManager
+from .game_state import GameStateManager, GameStatus
 from .models import GameSession
 
 logger = logging.getLogger(__name__)
@@ -102,28 +102,16 @@ class GameConsumer(AsyncWebsocketConsumer):
                 await self.close(code=5000)  # Internal error
                 return
 
-        # Join game group
-        self.group_name = f'game_{self.game_code}'
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
-
-        await self.accept()
-        self.is_connected = True
-
-        logger.info(f"Player {self.user.username} connected to game {self.game_code}")
-
-        # Notify group of connection
-        await self.channel_layer.group_send(
-            self.group_name,
-            {
-                'type': 'player_event',
-                'event_type': 'connected',
-                'username': self.user.username,
-                'user_id': self.user.id,
-            }
-        )
-
-        # Send initial state synchronization
-        await self.send_state_sync()
+                # Notify group of connection
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        'type': 'player_event',
+                        'event_type': 'connected',
+                        'username': self.user.username,
+                        'user_id': self.user.id,
+                    }
+                )
 
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection."""
@@ -156,7 +144,7 @@ class GameConsumer(AsyncWebsocketConsumer):
                         logger.error(f"Error sending disconnect notification: {e}")
 
                 # Update game state if needed
-                if self.game_session and self.game_session.status == 'in_progress':
+                if self.game_session and self.game_session.status == GameStatus.IN_PROGRESS.value:
                     try:
                         await self.handle_player_disconnect()
                     except Exception as e:
@@ -241,11 +229,11 @@ class GameConsumer(AsyncWebsocketConsumer):
 
             # Refresh game session
             self.game_session = await self.get_game_session()
-            
+
             # Check if we need to start countdown
-            if (self.game_session and 
-                self.game_session.status == 'ready' and 
-                self.game_session.player1 and 
+            if (self.game_session and
+                self.game_session.status == 'ready' and
+                self.game_session.player1 and
                 self.game_session.player2):
                 # Start countdown for both players
                 await self.start_countdown()
@@ -268,7 +256,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             )
 
         except Exception as e:
-            logger.error(f"Error in handle_join_game: {e}")
+            logger.error(f"Error in handle_join_game: {e}", exc_info=True)
             await self.send_error("Failed to join game")
 
     async def handle_move(self, message: MoveMessage):
@@ -488,7 +476,7 @@ class GameConsumer(AsyncWebsocketConsumer):
 
                 # Get and send state messages
                 state_messages = await self.get_state_messages_async(self.user.id)
-                
+
                 # Send messages only if still connected
                 if self.is_connected and not self.disconnecting:
                     for message in state_messages:
@@ -576,7 +564,7 @@ class GameConsumer(AsyncWebsocketConsumer):
                 await self.send_error("Failed to start race")
 
         except Exception as e:
-            logger.error(f"Error starting race: {e}")
+            logger.error(f"Error starting race: {e}", exc_info=True)
             await self.send_error("Failed to start race")
 
     async def send_error(self, message: str):
@@ -671,7 +659,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             with transaction.atomic():
                 game = GameSession.objects.select_for_update().get(code=self.game_code)
 
-                if game.status != 'in_progress':
+                if game.status != GameStatus.IN_PROGRESS.value:
                     return False, None
 
                 # Calculate completion time
@@ -763,7 +751,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             ).to_dict())
 
             # If race is in progress, send race started message
-            if state.status == GameStateManager.GameStatus.IN_PROGRESS and state.start_time:
+            if state.status == GameStatus.IN_PROGRESS and state.start_time:
                 messages.append(RaceStartedMessage(
                     start_time=state.start_time.isoformat(),
                     puzzle=state.puzzle
@@ -780,7 +768,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             return messages
 
         except Exception as e:
-            logger.error(f"Error getting state messages: {e}")
+            logger.error(f"Error getting state messages: {e}", exc_info=True)
             return []
 
     @database_sync_to_async
