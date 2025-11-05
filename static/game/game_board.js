@@ -1633,15 +1633,6 @@ document.addEventListener('DOMContentLoaded', () => {
     elapsedInterval = setInterval(() => {
       if (startTime) {
         const elapsed = new Date() - startTime;
-      clearInterval(elapsedInterval);
-    }
-    
-    startTime = new Date();
-    console.log('⏰ Set start time to:', startTime);
-    
-    elapsedInterval = setInterval(() => {
-      if (startTime) {
-        const elapsed = new Date() - startTime;
         const minutes = Math.floor(elapsed / 60000);
         const seconds = Math.floor((elapsed % 60000) / 1000);
         const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
