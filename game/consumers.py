@@ -436,6 +436,12 @@ class GameConsumer(AsyncWebsocketConsumer):
         print(f"🎉 Result finalized: {result}")
 
         print("📡 Broadcasting race_finished to all players...")
+        print(f"   Winner ID: {result['winner_id']}")
+        print(f"   Winner Username: {result['winner_username']}")
+        print(f"   Winner Time: {result['winner_time']}")
+        print(f"   Loser Time: {result.get('loser_time', 'Did not finish')}")
+        print(f"   Group Name: {self.group_name}")
+        
         # Broadcast finish immediately
         await self.channel_layer.group_send(
             self.group_name,
@@ -447,6 +453,8 @@ class GameConsumer(AsyncWebsocketConsumer):
                 'loser_time': result.get('loser_time', 'Did not finish'),
             }
         )
+        print("✅ race_finished broadcast completed!")
+        print("="*60)
 
     async def handle_play_again(self, data):
         """Create a new game with the same players."""

@@ -67,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (error) {
         console.error('Error sending WebSocket message:', error);
         return false;
+        console.log('✅ Fallback modal shown manually!');
       }
     } else if (ws.readyState === WebSocket.CONNECTING) {
       console.log('WebSocket still connecting, queuing message');
@@ -250,6 +251,19 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('');
       }, 1000);
     } else if (data.type === 'race_finished') {
+      console.log('');
+      console.log('═══════════════════════════════════════');
+      console.log('🏁 RACE FINISHED MESSAGE RECEIVED!');
+      console.log('═══════════════════════════════════════');
+      console.log('📊 Full finish data:', JSON.stringify(data, null, 2));
+      console.log('🏆 Winner ID:', data.winner_id);
+      console.log('🏆 Winner Username:', data.winner_username);
+      console.log('⏱️ Winner Time:', data.winner_time);
+      console.log('⏱️ Loser Time:', data.loser_time);
+      console.log('👤 Current Player ID:', playerId);
+      console.log('🎯 Is Winner?', data.winner_id == playerId);
+      console.log('═══════════════════════════════════════');
+      console.log('');
       handleGameFinished(data);
     } else if (data.type === 'game_progress_update') {
       // Real-time board state update
@@ -800,29 +814,45 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function handleGameFinished(data) {
+    console.log('🎮 handleGameFinished() called with data:', data);
+    
     gameFinished = true;
+    console.log('⏹️ Stopping timers...');
     stopTimers();
+    
+    console.log('🔒 Disabling all inputs...');
     disableAllInputs();
+    
+    console.log('✨ Clearing highlights...');
     clearHighlights();
     
     // Hide submit button
+    console.log('👻 Hiding submit button...');
     hideSubmitButton();
     
     // Update game status
     const gameStatusEl = document.getElementById('game-status');
     if (gameStatusEl) {
       gameStatusEl.innerHTML = '🏆 Finished';
+      console.log('✅ Game status updated to Finished');
     }
     
     // Hide race controls
     const raceControls = document.querySelector('.race-controls');
     if (raceControls) {
       raceControls.style.display = 'none';
+      console.log('✅ Race controls hidden');
     }
     
     // Determine winner and show results
     const isWinner = data.winner_id == playerId;
     const loserTime = data.loser_time || 'Did not finish';
+    
+    console.log('🏆 Winner determination:', {
+      winner_id: data.winner_id,
+      playerId: playerId,
+      isWinner: isWinner
+    });
     
     let winnerMessage;
     if (isWinner) {
@@ -831,24 +861,47 @@ document.addEventListener('DOMContentLoaded', () => {
       winnerMessage = `${data.winner_username} won in ${data.winner_time}. You: ${loserTime}`;
     }
     
+    console.log('📢 Winner message:', winnerMessage);
     addMessage(winnerMessage, isWinner ? 'success' : 'info');
     
     // Show winner modal
+    console.log('🎉 Calling showWinnerModal...');
     showWinnerModal(data, isWinner);
   }
 
   function showWinnerModal(data, isWinner) {
-    console.log('Showing winner modal:', { data, isWinner });
+    console.log('');
+    console.log('═══════════════════════════════════════');
+    console.log('🎊 showWinnerModal() called');
+    console.log('═══════════════════════════════════════');
+    console.log('Data:', data);
+    console.log('Is Winner:', isWinner);
+    
     const modal = document.getElementById('winner-modal');
     const winnerContent = document.getElementById('winner-content');
     const gameStats = document.getElementById('game-stats');
     
+    console.log('🔍 DOM Elements:');
+    console.log('  - modal:', modal);
+    console.log('  - winnerContent:', winnerContent);
+    console.log('  - gameStats:', gameStats);
+    
     if (!modal) {
-      console.error('Winner modal element not found!');
+      console.error('❌ Winner modal element not found!');
+      alert(`Game Over! ${isWinner ? 'You won!' : data.winner_username + ' won!'} Time: ${data.winner_time}`);
       return;
     }
     
+    if (!winnerContent) {
+      console.error('❌ Winner content element not found!');
+    }
+    
+    if (!gameStats) {
+      console.error('❌ Game stats element not found!');
+    }
+    
     // Populate winner content
+    console.log('📝 Populating winner content...');
     if (isWinner) {
       winnerContent.innerHTML = `
         <h4 class="text-success">🏆 Congratulations!</h4>
@@ -860,8 +913,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <p class="lead">${data.winner_username} won this round</p>
       `;
     }
+    console.log('✅ Winner content populated');
     
     // Populate game stats
+    console.log('📊 Populating game stats...');
     const difficulty = gameDataEl.dataset.difficulty;
     gameStats.innerHTML = `
       <div class="row">
@@ -877,18 +932,21 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="col-6">${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</div>
       </div>
     `;
+    console.log('✅ Game stats populated');
     
     // Show modal
+    console.log('🎭 Attempting to show modal...');
     try {
       if (typeof bootstrap !== 'undefined') {
+        console.log('✅ Bootstrap found, creating modal instance...');
         const bootstrapModal = new bootstrap.Modal(modal, {
           backdrop: 'static',
           keyboard: false
         });
         bootstrapModal.show();
-        console.log('Bootstrap modal shown');
+        console.log('✅ Bootstrap modal shown!');
       } else {
-        console.error('Bootstrap not loaded!');
+        console.warn('⚠️ Bootstrap not loaded, using fallback...');
         // Fallback: show modal manually with backdrop
         const backdrop = document.createElement('div');
         backdrop.className = 'modal-backdrop fade show';
@@ -908,9 +966,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
     } catch (error) {
-      console.error('Error showing modal:', error);
+  console.error('❌ Error showing modal:', error);
+  console.error('Stack trace:', error.stack);
       // Simple fallback
-      alert(`Game Over! ${isWinner ? 'You won!' : data.winner_username + ' won!'}`);
+  const message = `Game Over! ${isWinner ? '🏆 YOU WON!' : data.winner_username + ' won!'} Time: ${data.winner_time}`;
+  alert(message);
+    
+  console.log('═══════════════════════════════════════');
+  console.log('✅ showWinnerModal() completed');
+  console.log('═══════════════════════════════════════');
+  console.log('');
     }
   }
 
