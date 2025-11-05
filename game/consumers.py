@@ -92,17 +92,23 @@ class GameConsumer(AsyncWebsocketConsumer):
         # Get player info safely with async calls (by id)
         game_info = await self.get_game_player_info(game_id)
 
-        if not game_info['player2_id'] and game_info['player1_id'] != getattr(self.user, 'id', None):
+        # Fix join logic to be more permissive
+        if not game_info['player1_id']:
+            # No players yet, this user becomes player 1
+            await self.add_player1(game_id, self.user.id)
+            game_info = await self.get_game_player_info(game_id)
+        elif not game_info['player2_id'] and game_info['player1_id'] != self.user.id:
             # Add second player
             await self.add_player2(game_id, self.user.id)
             await self.start_game(game_id)
             # Refresh game info after adding player
             game_info = await self.get_game_player_info(game_id)
-        elif game_info['player2_id'] and (game_info['player1_id'] == self.user.id or game_info['player2_id'] == self.user.id):
-            # Rejoin existing game
+        elif game_info['player1_id'] == self.user.id or game_info['player2_id'] == self.user.id:
+            # Player is already in this game, allow reconnection
             pass
         else:
-            await self.safe_send({'error': 'Cannot join this game'})
+            # Game is full with other players
+            await self.safe_send({'error': 'Game is full. Please create a new game.'})
             return
         
         # Send game state to client (fetch puzzle + both player boards via id)
@@ -595,6 +601,15 @@ class GameConsumer(AsyncWebsocketConsumer):
             'game_status': event['game_status'],
             'message': f"{event['leaving_player']} has left the game.",
         }))
+    
+    @database_sync_to_async
+    def add_player1(self, game_id, user_id):
+        """Add first player to game."""
+        game = GameSession.objects.get(id=game_id)
+        user = User.objects.get(id=user_id)
+        game.player1 = user
+        game.status = 'waiting'
+        game.save()
     
     @database_sync_to_async
     def add_player2(self, game_id, user_id):

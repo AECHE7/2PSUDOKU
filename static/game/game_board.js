@@ -91,29 +91,35 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.type === 'notification') {
       addMessage(data.message);
     } else if (data.type === 'game_state') {
-      // Initial state: puzzle + both player boards
+      // Initial state: focus on player's board only
       updateBoardFromState(data.board, false); // Player's board
-      if (data.opponent_board) {
-        updateBoardFromState(data.opponent_board, true); // Opponent's board
+      
+      // Simple game info display
+      addMessage(`Room: ${data.player1} vs ${data.player2 || 'Waiting...'}`);
+      
+      // Update game focus status
+      const gameFocusStatus = document.getElementById('game-focus-status');
+      if (gameFocusStatus) {
+        if (data.player2 && data.player2 !== 'None') {
+          gameFocusStatus.innerHTML = `<p class="text-success">✓ Ready to race! Focus on your puzzle.</p>`;
+        } else {
+          gameFocusStatus.innerHTML = '<p class="text-muted">Waiting for opponent... Practice while you wait!</p>';
+        }
       }
-      addMessage(`Room: players ${data.player1} vs ${data.player2 || 'Waiting...'}`);
+      
       // If race already started, start timers
       if (data.start_time) {
         startTimers(new Date(data.start_time));
         startElapsedTimer();
       }
     } else if (data.type === 'move') {
-      // Show move in chat
-      addMessage(`${data.username} placed ${data.value} at row ${data.row + 1}, col ${data.col + 1}`);
-      
-      // Update the appropriate board in real-time
+      // Simple move notification - focus on player's own game
       if (data.player_id == playerId) {
         // Update player's own board (shouldn't be needed but for consistency)
         updatePlayerBoard(data.row, data.col, data.value);
       } else {
-        // Update opponent's board display
-        updateOpponentBoard(data.row, data.col, data.value);
-        addMessage(`${data.username} is making progress...`, 'info');
+        // Simple opponent move notification
+        addMessage(`${data.username} made a move`, 'info');
       }
     } else if (data.type === 'board') {
       updateBoardFromState(data.board);
@@ -149,7 +155,14 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (data.type === 'leave_game_confirmed') {
       handleLeaveConfirmed(data);
     } else if (data.error) {
-      addMessage(`Error: ${data.error}`, 'error');
+      // Show user-friendly error messages
+      let errorMessage = data.error;
+      if (errorMessage === 'Game is full. Please create a new game.') {
+        errorMessage = '🎮 This game is full. Please create or join another game.';
+      } else if (errorMessage === 'Cannot join this game') {
+        errorMessage = '❌ Unable to join this game. It may be full or have connection issues.';
+      }
+      addMessage(`Error: ${errorMessage}`, 'error');
       
       // If completion failed, reset game state so player can try again
       if (data.error.includes('not a valid completed solution')) {
@@ -1102,20 +1115,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateOpponentBoard(row, col, value) {
-    const opponentBoard = document.getElementById('opponent-board');
-    const cells = opponentBoard.querySelectorAll('.cell-input');
-    const cellIndex = row * 9 + col;
-    
-    if (cells[cellIndex] && !cells[cellIndex].classList.contains('prefilled')) {
-      cells[cellIndex].value = value;
-      cells[cellIndex].classList.add('filled');
-      
-      // Add visual effect for opponent move
-      cells[cellIndex].style.animation = 'opponentMove 0.5s ease';
-      setTimeout(() => {
-        cells[cellIndex].style.animation = '';
-      }, 500);
-    }
+    // Function removed - focusing on player's board only
+    // Opponent moves are now just shown as simple notifications
   }
 
   // Enhanced board state management

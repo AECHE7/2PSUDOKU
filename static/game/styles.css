@@ -251,3 +251,18 @@ section a:hover {
   border-color: #2196f3 !important;
 }
 
+/* Game focus styling */
+.game-focus {
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game-focus-status {
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #4681f4;
+}
+

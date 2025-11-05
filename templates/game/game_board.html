@@ -634,10 +634,14 @@
                   <td class="sudoku-cell" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
                     {% if cell != 0 and cell != "0" and cell %}
                       <input type="number" min="1" max="9" class="cell-input prefilled" value="{{ cell }}" disabled readonly 
+                             id="player-cell-{{ forloop.parentloop.counter0 }}-{{ forloop.counter0 }}"
+                             name="player_cell_{{ forloop.parentloop.counter0 }}_{{ forloop.counter0 }}"
                              aria-label="Prefilled cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}" 
                              tabindex="-1">
                     {% else %}
                       <input type="number" min="1" max="9" class="cell-input" 
+                             id="player-cell-{{ forloop.parentloop.counter0 }}-{{ forloop.counter0 }}"
+                             name="player_cell_{{ forloop.parentloop.counter0 }}_{{ forloop.counter0 }}"
                              data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}"
                              aria-label="Empty cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}"
                              placeholder="" autocomplete="off">
@@ -658,10 +662,14 @@
                   <td class="sudoku-cell" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
                     {% if cell != 0 and cell != "0" and cell %}
                       <input type="number" min="1" max="9" class="cell-input prefilled" value="{{ cell }}" disabled readonly 
+                             id="puzzle-cell-{{ forloop.parentloop.counter0 }}-{{ forloop.counter0 }}"
+                             name="puzzle_cell_{{ forloop.parentloop.counter0 }}_{{ forloop.counter0 }}"
                              aria-label="Prefilled cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}" 
                              tabindex="-1">
                     {% else %}
                       <input type="number" min="1" max="9" class="cell-input" 
+                             id="puzzle-cell-{{ forloop.parentloop.counter0 }}-{{ forloop.counter0 }}"
+                             name="puzzle_cell_{{ forloop.parentloop.counter0 }}_{{ forloop.counter0 }}"
                              data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}"
                              aria-label="Empty cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}"
                              placeholder="" autocomplete="off">
@@ -682,36 +690,14 @@
       {% endif %}
     </div>
 
-    <!-- Opponent's Board Preview (Read-only) -->
+    <!-- Game Focus: Player's Board Only -->
     <div class="board-section mt-4">
-      <h6 class="text-center mb-2">Opponent's Progress</h6>
-      {% if puzzle and puzzle|length > 0 %}
-        <table class="sudoku-grid opponent-board" id="opponent-board">
-          <tbody>
-            {% for row in puzzle %}
-              <tr class="sudoku-row">
-                {% for cell in row %}
-                  <td class="sudoku-cell">
-                    {% if cell != 0 and cell != "0" and cell %}
-                      <input type="number" class="cell-input prefilled opponent-cell" value="{{ cell }}" disabled readonly
-                             aria-label="Opponent prefilled cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}"
-                             tabindex="-1">
-                    {% else %}
-                      <input type="number" class="cell-input opponent-cell" disabled readonly
-                             aria-label="Opponent empty cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}"
-                             tabindex="-1">
-                    {% endif %}
-                  </td>
-                {% endfor %}
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      {% else %}
-        <div class="opponent-loading text-center py-3">
-          <p class="text-muted">Waiting for opponent...</p>
+      <h6 class="text-center mb-2">Game Status</h6>
+      <div class="game-focus">
+        <div id="game-focus-status" class="text-center py-3">
+          <p class="text-muted">Focus on your puzzle...</p>
         </div>
-      {% endif %}
+      </div>
     </div>
 
     <!-- Number Pad -->
