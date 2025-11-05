@@ -85,25 +85,32 @@ class GameConsumer(AsyncWebsocketConsumer):
     
     async def handle_join_game(self, data):
         """Handle player joining a game."""
+        print(f"🎮 Player {self.user.username} (ID: {self.user.id}) attempting to join game {self.code}")
+        
         # Create or get the game and operate using its id to keep DB work inside sync wrappers
         game_id = await self.get_or_create_game()
+        print(f"📝 Game ID: {game_id}")
 
         # Get player info safely with async calls (by id)
         game_info = await self.get_game_player_info(game_id)
+        print(f"👥 Current game info: Player1={game_info['player1_id']}, Player2={game_info['player2_id']}")
 
         # Fix join logic to be more permissive
         if not game_info['player1_id']:
             # No players yet, this user becomes player 1
+            print(f"🥇 Adding {self.user.username} as Player 1")
             await self.add_player1(game_id, self.user.id)
             game_info = await self.get_game_player_info(game_id)
         elif not game_info['player2_id'] and game_info['player1_id'] != self.user.id:
             # Add second player and auto-start race
+            print(f"🥈 Adding {self.user.username} as Player 2 - AUTO-STARTING RACE!")
             await self.add_player2(game_id, self.user.id)
             await self.start_game(game_id)
             
             # Auto-start the race when second player joins
             start_iso = await self.set_start_time(game_id)
             puzzle = await self.get_puzzle(game_id)
+            print(f"🏁 Broadcasting race_started message to group {self.group_name}")
             await self.channel_layer.group_send(
                 self.group_name,
                 {

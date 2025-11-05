@@ -154,7 +154,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (data.type === 'board') {
       updateBoardFromState(data.board);
     } else if (data.type === 'race_started') {
-      console.log('🏁 Race started message received:', data);
+      console.log('🏁 RACE STARTED MESSAGE RECEIVED!');
+      console.log('📊 Race data:', JSON.stringify(data, null, 2));
       
       // Initialize game statistics
       gameStatistics.startTime = data.start_time;
@@ -170,10 +171,17 @@ document.addEventListener('DOMContentLoaded', () => {
       // Start timers and ensure both boards have the puzzle
       const startTime = new Date(data.start_time);
       console.log('⏰ Starting timers with start time:', startTime);
+      console.log('⏰ Current time:', new Date());
+      
+      // Force timer start
+      console.log('🔄 Calling startTimers...');
       startTimers(startTime);
+      
+      console.log('🔄 Calling startElapsedTimer...');
       startElapsedTimer();
       
       if (data.puzzle) {
+        console.log('🧩 Updating board with puzzle data');
         updateBoardFromState(data.board || data.puzzle);
       }
       
@@ -181,10 +189,25 @@ document.addEventListener('DOMContentLoaded', () => {
       const gameStatusEl = document.getElementById('game-status');
       if (gameStatusEl) {
         gameStatusEl.innerHTML = '🏁 Racing';
+        gameStatusEl.style.color = 'green';
+        gameStatusEl.style.fontWeight = 'bold';
         console.log('✅ Updated game status to Racing');
+      } else {
+        console.error('❌ Could not find game-status element!');
       }
       
       addMessage('🏁 Race started — good luck!', 'success');
+      
+      // Force a UI refresh
+      setTimeout(() => {
+        console.log('🔄 Forcing UI refresh...');
+        const timerEl = document.getElementById('elapsed-time');
+        if (timerEl) {
+          console.log('⏰ Timer element found:', timerEl.textContent);
+        } else {
+          console.error('❌ Timer element not found!');
+        }
+      }, 1000);
     } else if (data.type === 'race_finished') {
       handleGameFinished(data);
     } else if (data.type === 'game_progress_update') {
@@ -265,7 +288,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!e.target.classList.contains('cell-input')) return;
     if (e.target.disabled) return;
     
-    console.log('Change event triggered on cell input');
+    console.log('🎯 CHANGE EVENT TRIGGERED ON CELL INPUT!');
+    console.log('📝 Target element:', e.target);
+    console.log('📝 Target value:', e.target.value);
+    console.log('📝 Target classes:', e.target.className);
     
     // Get row/col by finding the input's position in the board
     const playerBoard = document.getElementById('player-board');
@@ -301,7 +327,9 @@ document.addEventListener('DOMContentLoaded', () => {
       e.target.classList.remove('correct', 'incorrect', 'invalid');
       
       // Validate move immediately
+      console.log('🔍 Calling validateMove...');
       const isValidMove = validateMove(row, col, value);
+      console.log('🔍 Validation result:', isValidMove);
       
       // Track this move for analysis
       trackMove(row, col, value, isValidMove);
@@ -509,16 +537,40 @@ document.addEventListener('DOMContentLoaded', () => {
   let raceStartTime = null;
 
   function startTimers(startTime) {
+    console.log('⏰ startTimers called with:', startTime);
     raceStartTime = startTime;
-    if (timerInterval) clearInterval(timerInterval);
+    
+    if (timerInterval) {
+      console.log('⏰ Clearing existing timer interval');
+      clearInterval(timerInterval);
+    }
+    
+    console.log('⏰ Setting up new timer interval');
     timerInterval = setInterval(() => {
       const now = new Date();
       const elapsed = Math.max(0, Math.floor((now - raceStartTime) / 1000));
       const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
       const ss = String(elapsed % 60).padStart(2, '0');
-      document.getElementById('player1-timer').textContent = `${mm}:${ss}`;
-      document.getElementById('player2-timer').textContent = `${mm}:${ss}`;
+      
+      const timer1 = document.getElementById('player1-timer');
+      const timer2 = document.getElementById('player2-timer');
+      
+      if (timer1) {
+        timer1.textContent = `${mm}:${ss}`;
+        console.log('⏰ Updated player1-timer:', `${mm}:${ss}`);
+      } else {
+        console.error('❌ player1-timer element not found!');
+      }
+      
+      if (timer2) {
+        timer2.textContent = `${mm}:${ss}`;
+        console.log('⏰ Updated player2-timer:', `${mm}:${ss}`);
+      } else {
+        console.error('❌ player2-timer element not found!');
+      }
     }, 500);
+    
+    console.log('✅ Timer interval set up successfully');
   }
 
   function stopTimers() {
@@ -1453,18 +1505,34 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function startElapsedTimer() {
-    if (elapsedInterval) clearInterval(elapsedInterval);
+    console.log('⏰ startElapsedTimer called');
+    
+    if (elapsedInterval) {
+      console.log('⏰ Clearing existing elapsed timer interval');
+      clearInterval(elapsedInterval);
+    }
     
     startTime = new Date();
+    console.log('⏰ Set start time to:', startTime);
+    
     elapsedInterval = setInterval(() => {
       if (startTime) {
         const elapsed = new Date() - startTime;
         const minutes = Math.floor(elapsed / 60000);
         const seconds = Math.floor((elapsed % 60000) / 1000);
-        document.getElementById('elapsed-time').textContent = 
-          `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        const elapsedEl = document.getElementById('elapsed-time');
+        if (elapsedEl) {
+          elapsedEl.textContent = timeString;
+          console.log('⏰ Updated elapsed-time:', timeString);
+        } else {
+          console.error('❌ elapsed-time element not found!');
+        }
       }
     }, 1000);
+    
+    console.log('✅ Elapsed timer interval set up successfully');
   }
 
   function stopElapsedTimer() {
