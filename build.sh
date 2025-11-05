@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 set -o errexit  # Exit on error
+set -o pipefail # Exit on pipe failure
+set -o nounset  # Exit on undefined variable
+
+# Print commands for debugging
+set -x
 
 echo "🚀 Starting build process..."
 
@@ -18,8 +23,20 @@ python manage.py collectstatic --noinput
 echo "🔧 Testing Django configuration..."
 python manage.py check
 
-# Try to run migrations during build (may fail if DB not available, that's OK)
-echo "🗃️ Attempting migrations during build (fallback)..."
-python migrate_comprehensive.py || echo "⚠️ Build-time migrations failed (expected if DB not available yet)"
+# Print current migrations status
+echo "📋 Current migration status:"
+python manage.py showmigrations
+
+# Run migrations - first attempt
+echo "🗃️ Running migrations - primary attempt..."
+python migrate_comprehensive.py
+
+# Explicitly run game app migrations to ensure they're applied
+echo "🎮 Running game-specific migrations..."
+python manage.py migrate game --noinput
+
+# Verify migrations
+echo "🔍 Verifying migrations status:"
+python manage.py showmigrations game
 
 echo "✅ Build complete!"
