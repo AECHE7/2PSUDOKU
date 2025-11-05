@@ -11,6 +11,7 @@ class GameSession(models.Model):
         ('ready', 'Both players joined, ready to start'),
         ('in_progress', 'Game in progress'),
         ('finished', 'Game finished'),
+        ('abandoned', 'Game abandoned by player'),
     ]
     
     DIFFICULTY_CHOICES = [
@@ -47,16 +48,25 @@ class Move(models.Model):
 
 class GameResult(models.Model):
     """Store game results and records for competitive play."""
+    RESULT_TYPE_CHOICES = [
+        ('completion', 'Won by completing puzzle first'),
+        ('forfeit', 'Won by opponent forfeit/abandonment'),
+        ('timeout', 'Won by opponent timeout'),
+    ]
+    
     game = models.OneToOneField(GameSession, on_delete=models.CASCADE, related_name='result')
     winner = models.ForeignKey(User, related_name='won_results', on_delete=models.CASCADE)
     loser = models.ForeignKey(User, related_name='lost_results', on_delete=models.CASCADE)
     winner_time = models.DurationField()  # Time taken by winner to solve
     loser_time = models.DurationField(null=True, blank=True)  # Time taken by loser (if they finished)
     difficulty = models.CharField(max_length=10, choices=GameSession.DIFFICULTY_CHOICES)
+    result_type = models.CharField(max_length=20, choices=RESULT_TYPE_CHOICES, default='completion')
     completed_at = models.DateTimeField(default=timezone.now)
     
     class Meta:
         ordering = ['-completed_at']
         
     def __str__(self):
+        if self.result_type == 'forfeit':
+            return f"{self.winner.username} won by forfeit vs {self.loser.username} ({self.difficulty})"
         return f"{self.winner.username} beat {self.loser.username} in {self.winner_time} ({self.difficulty})"

@@ -66,6 +66,8 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.handle_get_board(data)
         elif message_type == 'play_again':
             await self.handle_play_again(data)
+        elif message_type == 'leave_game':
+            await self.handle_leave_game(data)
         elif message_type == 'notification':
             # Handle notification messages (these are usually just client acknowledgments)
             pass
@@ -355,6 +357,54 @@ class GameConsumer(AsyncWebsocketConsumer):
                 'difficulty': difficulty,
             }
         )
+
+    async def handle_leave_game(self, data):
+        """Handle a player leaving the game session."""
+        game_id = await self.get_game_id()
+        if not game_id:
+            await self.send(text_data=json.dumps({'error': 'Game not found'}))
+            return
+
+        reason = data.get('reason', 'user_request')
+        
+        # Get game info
+        game_info = await self.get_game_player_info(game_id)
+        leaving_player = self.user.username if self.user.is_authenticated else 'Anonymous'
+        
+        # Determine remaining player
+        remaining_player_id = None
+        remaining_player_username = None
+        
+        if self.user.id == game_info['player1_id']:
+            remaining_player_id = game_info['player2_id']
+            remaining_player_username = game_info['player2_username']
+        elif self.user.id == game_info['player2_id']:
+            remaining_player_id = game_info['player1_id']
+            remaining_player_username = game_info['player1_username']
+        
+        # Update game status to reflect player leaving
+        await self.mark_game_abandoned(game_id, self.user.id, reason)
+        
+        # Notify all players in the room
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                'type': 'player_left_game',
+                'leaving_player': leaving_player,
+                'remaining_player': remaining_player_username,
+                'reason': reason,
+                'game_status': 'abandoned',
+            }
+        )
+        
+        # Send confirmation to leaving player
+        await self.send(text_data=json.dumps({
+            'type': 'leave_game_confirmed',
+            'message': 'You have left the game successfully.',
+        }))
+        
+        # Close connection for leaving player
+        await self.close()
     
     # Database operations
     @database_sync_to_async
@@ -527,6 +577,17 @@ class GameConsumer(AsyncWebsocketConsumer):
             'game_code': event['game_code'],
             'difficulty': event['difficulty'],
         }))
+
+    async def player_left_game(self, event):
+        """Handle player leaving game notification."""
+        await self.send(text_data=json.dumps({
+            'type': 'player_left_game',
+            'leaving_player': event['leaving_player'],
+            'remaining_player': event['remaining_player'],
+            'reason': event['reason'],
+            'game_status': event['game_status'],
+            'message': f"{event['leaving_player']} has left the game.",
+        }))
     
     @database_sync_to_async
     def add_player2(self, game_id, user_id):
@@ -580,8 +641,51 @@ class GameConsumer(AsyncWebsocketConsumer):
             'player2_id': game.player2.id if game.player2 else None,
             'player2_username': game.player2.username if game.player2 else None,
         }
-    
 
-    
-
-
+    @database_sync_to_async
+    def mark_game_abandoned(self, game_id, leaving_player_id, reason):
+        """Mark game as abandoned when a player leaves."""
+        game = GameSession.objects.get(id=game_id)
+        
+        # Update game status
+        game.status = 'abandoned'
+        game.end_time = timezone.now()
+        
+        # Store information about who left and why
+        if not game.board:
+            game.board = {}
+        
+        game.board['abandoned'] = {
+            'leaving_player_id': leaving_player_id,
+            'reason': reason,
+            'timestamp': timezone.now().isoformat(),
+        }
+        
+        # If the game was in progress, award win to remaining player
+        if game.status in ['in_progress', 'ready'] and game.player1 and game.player2:
+            from .models import GameResult
+            
+            leaving_player = None
+            remaining_player = None
+            
+            if game.player1.id == leaving_player_id:
+                leaving_player = game.player1
+                remaining_player = game.player2
+            else:
+                leaving_player = game.player2
+                remaining_player = game.player1
+            
+            # Create game result - remaining player wins by forfeit
+            if remaining_player and leaving_player:
+                GameResult.objects.create(
+                    game=game,
+                    winner=remaining_player,
+                    loser=leaving_player,
+                    winner_time=timezone.timedelta(0),  # Instant win
+                    loser_time=None,
+                    difficulty=game.difficulty,
+                    result_type='forfeit'
+                )
+                game.winner = remaining_player
+        
+        game.save()

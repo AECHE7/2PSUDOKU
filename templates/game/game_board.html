@@ -3,20 +3,43 @@
 
 {% block extra_css %}
 <style>
-  /* Game Layout */
+  /* Game Layout - Sudoku.com inspired */
   .game-layout {
     display: grid;
     grid-template-columns: 1fr 400px;
-    gap: 20px;
-    max-width: 1200px;
+    gap: 24px;
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 24px;
+    background-color: var(--bg-secondary);
+  }
+
+  /* Modern card styling */
+  .game-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+  }
+
+  .game-card-header {
+    background: #f8fafc;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 20px 24px;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .game-card-body {
+    padding: 24px;
   }
 
   /* Player Status */
   .current-player {
-    border-color: #2196f3 !important;
-    background-color: #f0f8ff;
+    border-color: var(--primary-blue) !important;
+    background-color: #eff6ff;
+    box-shadow: 0 0 0 1px var(--primary-blue);
   }
 
   .players-header .player {
@@ -82,91 +105,121 @@
     position: relative;
   }
 
+  /* Modern Sudoku Grid - Sudoku.com inspired */
   .sudoku-grid {
     width: 100%;
-    max-width: 500px;
+    max-width: 480px;
     margin: 0 auto;
     border-collapse: separate;
-    border-spacing: 2px;
-    background: #2c3e50;
+    border-spacing: 1px;
+    background: #4b5563;
     border-radius: 8px;
     overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    position: relative;
   }
 
   .sudoku-cell {
     width: 11.11%;
-    height: 50px;
+    height: 52px;
     padding: 0;
     background: white;
     position: relative;
     border: none;
+    transition: background-color 0.15s ease;
   }
 
+  .sudoku-cell:hover {
+    background: #f8fafc;
+  }
+
+  /* Enhanced 3x3 box borders */
   .sudoku-cell:nth-child(3n) {
-    border-right: 3px solid #2c3e50;
+    border-right: 2px solid #4b5563;
   }
 
   .sudoku-cell:nth-child(6n) {
-    border-right: 3px solid #2c3e50;
+    border-right: 2px solid #4b5563;
   }
 
   .sudoku-row:nth-child(3n) .sudoku-cell {
-    border-bottom: 3px solid #2c3e50;
+    border-bottom: 2px solid #4b5563;
   }
 
   .sudoku-row:nth-child(6n) .sudoku-cell {
-    border-bottom: 3px solid #2c3e50;
+    border-bottom: 2px solid #4b5563;
   }
 
   .cell-input {
     width: 100%;
     height: 50px;
-    border: 1px solid #e0e0e0;
+    border: none;
     text-align: center;
-    font-size: 1.4rem;
-    font-weight: bold;
-    background: white;
-    transition: all 0.3s ease;
+    font-size: 1.25rem;
+    font-weight: 600;
+    background: transparent;
+    transition: all 0.15s ease;
     outline: none;
     cursor: pointer;
-    color: #333;
+    color: #1f2937;
   }
 
   .cell-input:hover {
-    background-color: #e3f2fd;
+    background-color: #f8fafc;
   }
 
   .cell-input:focus {
-    background-color: #bbdefb;
-    box-shadow: inset 0 0 0 2px #2196f3;
+    background-color: #dbeafe;
+    color: #2563eb;
+    box-shadow: inset 0 0 0 2px #3b82f6;
   }
 
   .cell-input.selected {
-    background-color: #2196f3 !important;
-    color: white;
+    background-color: #dbeafe !important;
+    color: #2563eb;
+    box-shadow: inset 0 0 0 2px #3b82f6;
+  }
+
+  .cell-input.same-number {
+    background-color: #fef3c7 !important;
+    color: #92400e;
   }
 
   .cell-input.highlighted {
-    background-color: #fff3e0;
+    background-color: #f0f9ff;
   }
 
   .cell-input.prefilled {
-    background-color: #f5f5f5;
-    color: #2c3e50;
-    font-weight: 900;
-    border-color: #bdc3c7;
+    background-color: #f3f4f6;
+    color: #374151;
+    font-weight: 700;
+    cursor: default;
   }
 
   .cell-input.correct {
-    background-color: #e8f5e8;
-    color: #2e7d32;
+    background-color: #dcfce7;
+    color: #16a34a;
     animation: correctPulse 0.5s ease;
   }
 
   .cell-input.incorrect {
-    background-color: #ffebee;
-    color: #c62828;
-    animation: incorrectShake 0.5s ease;
+    background-color: #fee2e2;
+    color: #dc2626;
+    animation: shake 0.3s ease-in-out;
+  }
+
+  /* Modern animations */
+  @keyframes shake {
+    0%, 20%, 50%, 80%, 100% { transform: translateX(0); }
+    10% { transform: translateX(-2px); }
+    30% { transform: translateX(2px); }
+    60% { transform: translateX(-1px); }
+  }
+
+  @keyframes correctPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
   }
 
   .cell-input.game-finished {
@@ -267,20 +320,29 @@
     height: 100px;
   }
 
-  /* Statistics Panel */
+  /* Modern Statistics Panel */
   .stats-panel {
     background: white;
     border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e5e7eb;
   }
 
   .stat-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 0;
-    border-bottom: 1px solid #f0f0f0;
+    padding: 16px 0;
+    border-bottom: 1px solid #f3f4f6;
+    transition: all 0.2s ease;
+  }
+
+  .stat-item:hover {
+    background: #f8fafc;
+    margin: 0 -12px;
+    padding: 16px 12px;
+    border-radius: 6px;
   }
 
   .stat-item:last-child {
@@ -396,6 +458,113 @@
     .number-btn {
       height: 40px;
       font-size: 1rem;
+    }
+  }
+
+  /* Connection Status Styles */
+  .connection-good::before {
+    content: "🟢";
+    margin-right: 4px;
+  }
+  .connection-good::after {
+    content: "Connected";
+    font-size: 0.75rem;
+    color: #10b981;
+  }
+  
+  .connection-poor::before {
+    content: "🔴";
+    margin-right: 4px;
+  }
+  .connection-poor::after {
+    content: "Reconnecting...";
+    font-size: 0.75rem;
+    color: #ef4444;
+  }
+
+  /* Enhanced Mobile and Accessibility */
+  @media (max-width: 768px) {
+    .game-layout {
+      grid-template-columns: 1fr;
+      padding: 10px;
+    }
+    
+    .game-stats {
+      flex-direction: column;
+    }
+    
+    .stat-item {
+      width: 100%;
+      margin-bottom: 0.5rem;
+    }
+    
+    .sudoku-grid {
+      font-size: 0.9rem;
+    }
+    
+    .cell-input {
+      height: 35px;
+      font-size: 0.9rem;
+    }
+    
+    .game-controls .btn {
+      font-size: 0.85rem;
+      padding: 0.4rem 0.8rem;
+      margin-bottom: 0.5rem;
+    }
+  }
+
+  /* Enhanced focus and keyboard navigation */
+  .cell-input:focus {
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+    border-color: #6366f1;
+    outline: none;
+  }
+  
+  .btn:focus {
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+    outline: none;
+  }
+
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    .sudoku-grid {
+      border: 3px solid #000;
+    }
+    
+    .cell-input {
+      border: 2px solid #000;
+    }
+    
+    .cell-input.selected {
+      background-color: #ffff00;
+      color: #000;
+    }
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    .cell-input,
+    .btn,
+    .card {
+      transition: none;
+    }
+    
+    .spinner-border {
+      animation: none;
+    }
+  }
+
+  /* Print support */
+  @media print {
+    .game-controls,
+    .chat-section,
+    .btn {
+      display: none;
+    }
+    
+    .sudoku-grid {
+      break-inside: avoid;
     }
   }
 </style>
@@ -580,6 +749,33 @@
         {% else %}
           <div class="alert alert-secondary">Game status: {{ game.status }}</div>
         {% endif %}
+        
+        <!-- Leave Game Option -->
+        {% if game.status != 'finished' %}
+          <div class="leave-game-section mt-3">
+            <button id="leave-game-btn" class="btn btn-outline-danger btn-sm">
+              <i class="fas fa-sign-out-alt"></i> Leave Game
+            </button>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Help -->
+    <div class="shortcuts-help mt-4">
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#shortcuts-info">
+        <i class="fas fa-keyboard"></i> Keyboard Shortcuts
+      </button>
+      <div class="collapse mt-2" id="shortcuts-info">
+        <div class="card card-body">
+          <small>
+            <strong>Navigation:</strong> Arrow keys to move between cells<br>
+            <strong>Input:</strong> Number keys (1-9) to fill cells<br>
+            <strong>Clear:</strong> Backspace or Delete to clear cell<br>
+            <strong>Submit:</strong> Ctrl+Enter to submit solution<br>
+            <strong>Leave:</strong> Ctrl+Q to leave game
+          </small>
+        </div>
       </div>
     </div>
   </div>
@@ -610,6 +806,11 @@
         {% elif game.status == 'ready' %}✅ Ready
         {% else %}🏁 Racing{% endif %}
       </span>
+    </div>
+    
+    <div class="stat-item">
+      <span class="stat-label">🔗 Connection</span>
+      <span class="stat-value connection-good" id="connection-status"></span>
     </div>
 
     <div class="stat-item">

@@ -139,6 +139,10 @@ document.addEventListener('DOMContentLoaded', () => {
       handlePlayerReadyStatus(data);
     } else if (data.type === 'new_game_created') {
       handleNewGameCreated(data);
+    } else if (data.type === 'player_left_game') {
+      handlePlayerLeftGame(data);
+    } else if (data.type === 'leave_game_confirmed') {
+      handleLeaveConfirmed(data);
     } else if (data.error) {
       addMessage(`Error: ${data.error}`, 'error');
       
@@ -314,6 +318,42 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', (e) => {
     if (e.target.id === 'play-again-btn') {
       handlePlayAgain();
+    }
+  });
+
+  // Leave Game button
+  const leaveGameBtn = document.getElementById('leave-game-btn');
+  if (leaveGameBtn) {
+    leaveGameBtn.addEventListener('click', () => {
+      handleLeaveGame();
+    });
+  }
+
+  // Enhanced keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    // Ctrl+Enter to submit solution
+    if (e.ctrlKey && e.key === 'Enter') {
+      const finishBtn = document.getElementById('finish-btn');
+      if (finishBtn && !finishBtn.disabled) {
+        finishBtn.click();
+      }
+      e.preventDefault();
+    }
+    
+    // Ctrl+Q to leave game
+    if (e.ctrlKey && e.key === 'q') {
+      handleLeaveGame();
+      e.preventDefault();
+    }
+    
+    // Escape to deselect cell
+    if (e.key === 'Escape') {
+      if (selectedCell) {
+        selectedCell.classList.remove('selected');
+        selectedCell = null;
+        clearHighlights();
+      }
+      e.preventDefault();
     }
   });
 
@@ -611,6 +651,123 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1500);
   }
 
+  function handlePlayerLeftGame(data) {
+    // Handle when a player leaves the game
+    const { leaving_player, remaining_player, reason, game_status } = data;
+    
+    if (leaving_player === username) {
+      // This player left - shouldn't happen since we redirect
+      addMessage('You have left the game.', 'info');
+    } else {
+      // Opponent left
+      addMessage(`${leaving_player} has left the game.`, 'warning');
+      
+      if (reason === 'user_request') {
+        addMessage('You win by forfeit! 🎉', 'success');
+      } else {
+        addMessage('Game abandoned due to disconnection.', 'warning');
+      }
+      
+      // Show options to player
+      showGameEndOptions({
+        type: 'forfeit',
+        winner: remaining_player,
+        message: `${leaving_player} left the game`,
+      });
+      
+      // Disable game controls
+      disableGameControls();
+    }
+  }
+
+  function handleLeaveConfirmed(data) {
+    // Handle leave game confirmation
+    addMessage(data.message, 'success');
+    
+    // Show leaving message
+    const gameBoard = document.getElementById('game-board');
+    if (gameBoard) {
+      gameBoard.innerHTML = `
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary mb-3" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <h4>Leaving game...</h4>
+          <p class="text-muted">Redirecting to main page...</p>
+        </div>
+      `;
+    }
+  }
+
+  function disableGameControls() {
+    // Disable all game interaction elements
+    const inputs = document.querySelectorAll('.cell-input');
+    inputs.forEach(input => {
+      input.disabled = true;
+      input.style.opacity = '0.6';
+    });
+    
+    const buttons = document.querySelectorAll('.game-controls button');
+    buttons.forEach(button => {
+      if (!button.classList.contains('btn-secondary')) { // Keep leave button enabled
+        button.disabled = true;
+      }
+    });
+    
+    // Update game status
+    const statusEl = document.getElementById('game-status');
+    if (statusEl) {
+      statusEl.innerHTML = '❌ Game Ended';
+    }
+  }
+
+  function showGameEndOptions(result) {
+    // Create or update modal for game end
+    let modal = document.getElementById('gameEndModal');
+    
+    if (!modal) {
+      // Create modal if it doesn't exist
+      modal = document.createElement('div');
+      modal.className = 'modal fade';
+      modal.id = 'gameEndModal';
+      modal.innerHTML = `
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Game Ended</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div id="gameEndContent"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="button" class="btn btn-primary" onclick="window.location.href = '/'">
+                Return to Lobby
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    
+    // Update modal content
+    const content = document.getElementById('gameEndContent');
+    content.innerHTML = `
+      <div class="text-center">
+        <i class="fas fa-trophy text-warning fa-3x mb-3"></i>
+        <h4>${result.type === 'forfeit' ? 'Victory by Forfeit!' : 'Game Over'}</h4>
+        <p class="lead">${result.message}</p>
+        <p class="text-muted">The game has ended and cannot be continued.</p>
+      </div>
+    `;
+    
+    // Show modal
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+  }
+
   // Interactive UI Functions
   function selectCell(cellInput) {
     // Remove previous selection
@@ -902,6 +1059,84 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update game status  
       document.getElementById('game-status').innerHTML = '⏳ Waiting for opponent';
     }
+  }
+
+  function handleLeaveGame() {
+    // Confirm before leaving
+    const isRacing = document.getElementById('game-status').textContent.includes('Racing');
+    const confirmMessage = isRacing 
+      ? 'Are you sure you want to leave the race? This will forfeit the game.' 
+      : 'Are you sure you want to leave this game?';
+    
+    if (confirm(confirmMessage)) {
+      // Send leave message to server
+      safeSend({ 
+        type: 'leave_game',
+        reason: 'user_request'
+      });
+      
+      // Show leaving message
+      addMessage('Leaving game...', 'info');
+      
+      // Disable all controls
+      const buttons = document.querySelectorAll('button');
+      buttons.forEach(btn => btn.disabled = true);
+      
+      // Redirect after a delay
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000);
+    }
+  }
+
+  // Auto-save game state to prevent data loss
+  function autoSaveGameState() {
+    if (typeof Storage !== 'undefined') {
+      const gameState = {
+        gameCode: gameCode,
+        board: Array.from(document.querySelectorAll('#player-board .cell-input')).map(input => input.value || ''),
+        timestamp: Date.now()
+      };
+      localStorage.setItem('sudoku_race_autosave', JSON.stringify(gameState));
+    }
+  }
+
+  // Auto-save every 30 seconds during active play
+  if (typeof Storage !== 'undefined') {
+    setInterval(autoSaveGameState, 30000);
+  }
+
+  // Page visibility API for better performance
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // Page is hidden, reduce activity
+      console.log('Page hidden - reducing background activity');
+    } else {
+      // Page is visible, resume normal activity
+      console.log('Page visible - resuming normal activity');
+    }
+  });
+
+  // Connection status indicator
+  function updateConnectionStatus(connected) {
+    const statusEl = document.getElementById('connection-status');
+    if (statusEl) {
+      statusEl.className = connected ? 'connection-good' : 'connection-poor';
+      statusEl.textContent = connected ? 'Connected' : 'Reconnecting...';
+    }
+  }
+
+  // Enhanced error handling with retry
+  function handleConnectionError() {
+    updateConnectionStatus(false);
+    addMessage('Connection lost. Attempting to reconnect...', 'error');
+    
+    // Try to reconnect after a delay
+    setTimeout(() => {
+      if (ws.readyState === WebSocket.CLOSED) {
+        location.reload();
+      }
+    }, 5000);
   }
   
 
