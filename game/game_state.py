@@ -226,11 +226,39 @@ class GameStateManager:
             with transaction.atomic():
                 game = GameSession.objects.select_for_update().get(id=self.game_session.id)
 
-                if game.status != 'in_progress':
+                # Verify game state
+                if game.status != GameStatus.IN_PROGRESS.value:
+                    logger.error(f"Cannot complete puzzle: game status is {game.status}")
                     return False, None
 
-                # Calculate completion time
+                # Verify start time
                 if not game.start_time:
+                    logger.error("Cannot complete puzzle: no start time")
+                    return False, None
+
+                # Verify board data
+                board_data = game.board or {}
+                player_board = None
+                if player_id == game.player1_id:
+                    player_board = board_data.get('player1_board')
+                elif player_id == game.player2_id:
+                    player_board = board_data.get('player2_board')
+                
+                solution = board_data.get('solution')
+                
+                if not player_board or not solution:
+                    logger.error("Cannot complete puzzle: missing board data")
+                    return False, None
+
+                # Verify solution is correct
+                is_correct = all(
+                    player_board[i][j] == solution[i][j]
+                    for i in range(9)
+                    for j in range(9)
+                )
+
+                if not is_correct:
+                    logger.error("Cannot complete puzzle: solution is incorrect")
                     return False, None
 
                 completion_time = timezone.now() - game.start_time
@@ -247,6 +275,7 @@ class GameStateManager:
                     winner = game.player2
                     loser = game.player1
                 else:
+                    logger.error(f"Cannot complete puzzle: player {player_id} not in game")
                     return False, None
 
                 # Create result
@@ -344,20 +373,22 @@ class GameStateManager:
         # Check Sudoku rules against player's current board
         board = player_state.board
 
-        # Check row
-        if value in board[row]:
-            return False
+        # Check row - exclude current cell
+        for c in range(9):
+            if c != col and board[row][c] == value:
+                return False
 
-        # Check column
-        if value in [board[r][col] for r in range(9)]:
-            return False
+        # Check column - exclude current cell
+        for r in range(9):
+            if r != row and board[r][col] == value:
+                return False
 
-        # Check 3x3 box
+        # Check 3x3 box - exclude current cell
         box_row = (row // 3) * 3
         box_col = (col // 3) * 3
         for r in range(box_row, box_row + 3):
             for c in range(box_col, box_col + 3):
-                if board[r][c] == value:
+                if (r != row or c != col) and board[r][c] == value:
                     return False
 
         return True
