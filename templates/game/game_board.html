@@ -2,18 +2,38 @@
 {% load static %}
 
 {% block content %}
-<h1>Sudoku Game: {{ game.code }}</h1>
+<h1>🏁 Sudoku Race: {{ game.code }}</h1>
 
-<div class="game-info">
-  <p>Player 1: <strong class="{% if is_player1 %}highlight{% endif %}">{{ game.player1.username }}</strong></p>
-  {% if game.player2 %}
-    <p>Player 2: <strong class="{% if is_player2 %}highlight{% endif %}">{{ game.player2.username }}</strong></p>
-  {% else %}
-    <p>Player 2: <em>Waiting...</em></p>
-  {% endif %}
-  <p>Status: <strong>{{ game.get_status_display }}</strong></p>
-  <p>Current Turn: <strong id="current-turn">{% if game.current_turn %}{{ game.current_turn.username }}{% else %}Pending{% endif %}</strong></p>
-  <p>Your Role: <strong id="your-role">{% if is_player1 %}Player 1{% elif is_player2 %}Player 2{% else %}Spectator{% endif %}</strong></p>
+<div class="game-header">
+  <div class="game-info">
+    <div class="players">
+      <div class="player {% if is_player1 %}current-player{% endif %}">
+        <h3>{{ game.player1.username }}</h3>
+        <div class="player-timer" id="player1-timer">00:00</div>
+        <div class="player-status" id="player1-status">{% if is_player1 %}You{% else %}Opponent{% endif %}</div>
+      </div>
+      
+      <div class="vs">VS</div>
+      
+      <div class="player {% if is_player2 %}current-player{% endif %}">
+        {% if game.player2 %}
+          <h3>{{ game.player2.username }}</h3>
+          <div class="player-timer" id="player2-timer">00:00</div>
+          <div class="player-status" id="player2-status">{% if is_player2 %}You{% else %}Opponent{% endif %}</div>
+        {% else %}
+          <h3>Waiting...</h3>
+          <div class="player-timer">--:--</div>
+          <div class="player-status">Joining...</div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <div class="game-meta">
+      <p><strong>Difficulty:</strong> <span class="difficulty-{{ game.difficulty }}">{{ game.get_difficulty_display }}</span></p>
+      <p><strong>Status:</strong> <span id="game-status">{{ game.get_status_display }}</span></p>
+      <p><strong>Room Code:</strong> <code>{{ game.code }}</code></p>
+    </div>
+  </div>
 </div>
 
 <div id="game-container">
@@ -42,14 +62,23 @@
 
 <div id="messages"></div>
 
+<div class="game-controls">
+  <div id="game-messages"></div>
+  <div class="race-controls">
+    <button id="ready-btn" class="btn btn-primary" style="display: none;">I'm Ready!</button>
+    <button id="start-race-btn" class="btn btn-success" style="display: none;">Start Race!</button>
+  </div>
+</div>
+
 <div id="game-data" 
   data-game-code="{{ game.code }}"
   data-player-id="{{ user.id }}"
   data-player1-id="{{ game.player1.id }}"
   data-player2-id="{{ game.player2.id|default:'' }}"
-  data-current-player-id="{{ game.current_turn.id|default:'' }}"
+  data-difficulty="{{ game.difficulty }}"
   data-is-player1="{% if is_player1 %}true{% else %}false{% endif %}"
   data-is-player2="{% if is_player2 %}true{% else %}false{% endif %}"
+  data-game-status="{{ game.status }}"
   style="display: none;"></div>
 
 <script src="{% static 'game/game_board.js' %}"></script>

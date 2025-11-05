@@ -43,26 +43,35 @@ def index(request):
 
 @login_required(login_url='login')
 def create_game(request):
-    """Create a new game session."""
-    code = str(uuid.uuid4())[:8].upper()
-    puzzle = SudokuPuzzle.generate_puzzle('medium')
+    """Create a new game session with difficulty selection."""
+    if request.method == 'POST':
+        difficulty = request.POST.get('difficulty', 'medium')
+        if difficulty not in ['easy', 'medium', 'hard']:
+            difficulty = 'medium'
+            
+        code = str(uuid.uuid4())[:8].upper()
+        puzzle = SudokuPuzzle.generate_puzzle(difficulty)
+        
+        game = GameSession.objects.create(
+            code=code,
+            player1=request.user,
+            difficulty=difficulty,
+            board={
+                'puzzle': puzzle.board,
+                'player1_board': [row[:] for row in puzzle.board],  # Each player has own board state
+                'player2_board': [row[:] for row in puzzle.board],
+            },
+            status='waiting',
+        )
+        
+        return redirect('game_detail', code=code)
     
-    game = GameSession.objects.create(
-        code=code,
-        player1=request.user,
-        board={
-            'puzzle': puzzle.board,
-            'current': [row[:] for row in puzzle.board],
-        },
-        current_turn=request.user,
-        status='waiting',
-    )
-    
-    return redirect('game_detail', code=code)
+    # Show difficulty selection form
+    return render(request, 'game/create_game.html')
 
 @login_required(login_url='login')
 def game_detail(request, code):
-    """Display a game board."""
+    """Display a game board for competitive solving."""
     try:
         game = GameSession.objects.get(code=code)
     except GameSession.DoesNotExist:
@@ -76,15 +85,21 @@ def game_detail(request, code):
         # Allow joining if game is waiting
         if game.status == 'waiting' and game.player2 is None:
             game.player2 = request.user
-            game.status = 'in_progress'
+            game.status = 'ready'  # Both players joined, ready to start
             game.save()
             is_player2 = True
         else:
             return render(request, 'game/cannot_join.html', {'game': game})
     
+    # Get the correct board state for this player
+    player_key = 'player1_board' if is_player1 else 'player2_board'
+    board = game.board.get(player_key, game.board.get('puzzle', []))
+    
     return render(request, 'game/game_board.html', {
         'game': game,
-        'board': game.board.get('current', []),
+        'board': board,
+        'puzzle': game.board.get('puzzle', []),
         'is_player1': is_player1,
         'is_player2': is_player2,
+        'difficulty': game.difficulty,
     })

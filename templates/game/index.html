@@ -2,26 +2,54 @@
 {% load static %}
 
 {% block content %}
-<h1>2P Sudoku</h1>
+<h1>🏁 2P Sudoku Race</h1>
+<p class="subtitle">Compete head-to-head to solve Sudoku puzzles!</p>
 
 <section>
-  <h2>Create a New Game</h2>
-  <a href="{% url 'create_game' %}" class="btn btn-primary">Create Game</a>
+  <h2>🎮 Create a New Race</h2>
+  <a href="{% url 'create_game' %}" class="btn btn-primary">Create New Game Room</a>
+  <p>Choose difficulty and create a room for competitive solving</p>
 </section>
 
 <section>
-  <h2>Join a Waiting Game</h2>
+  <h2>🚪 Join a Waiting Room</h2>
   {% if games %}
-    <ul>
+    <div class="games-list">
       {% for game in games %}
-        <li>
-          <a href="{% url 'game_detail' game.code %}">{{ game.code }} - Created by {{ game.player1.username }}</a>
-        </li>
+        <div class="game-card">
+          <h3>Room: {{ game.code }}</h3>
+          <p>Host: {{ game.player1.username }}</p>
+          <p>Difficulty: <span class="difficulty-{{ game.difficulty }}">{{ game.get_difficulty_display }}</span></p>
+          <p>Status: {{ game.get_status_display }}</p>
+          <a href="{% url 'game_detail' game.code %}" class="btn btn-join">Join Race</a>
+        </div>
       {% endfor %}
-    </ul>
+    </div>
   {% else %}
-    <p>No games waiting for players.</p>
+    <p>No games waiting for players. Create one to start racing! 🚀</p>
   {% endif %}
+</section>
+
+<section class="how-to-play">
+  <h2>🏆 How to Play</h2>
+  <div class="rules">
+    <div class="rule">
+      <h4>1. Create or Join</h4>
+      <p>Create a room with your preferred difficulty or join an existing one</p>
+    </div>
+    <div class="rule">
+      <h4>2. Race to Solve</h4>
+      <p>Both players solve the same Sudoku puzzle simultaneously</p>
+    </div>
+    <div class="rule">
+      <h4>3. Win the Race</h4>
+      <p>First player to complete the puzzle wins!</p>
+    </div>
+    <div class="rule">
+      <h4>4. Track Records</h4>
+      <p>Your solve times and wins are recorded for bragging rights</p>
+    </div>
+  </div>
 </section>
 
 <script src="{% static 'game/game.js' %}"></script>

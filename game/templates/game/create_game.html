@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create New Game - 2P Sudoku</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'game/styles.css' %}">
+</head>
+<body>
+    <div class="container">
+        <h1>Create New Game</h1>
+        
+        <div class="form-container">
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="difficulty">Choose Difficulty:</label>
+                    <select name="difficulty" id="difficulty" required>
+                        <option value="easy">Easy - Perfect for beginners</option>
+                        <option value="medium" selected>Medium - Balanced challenge</option>
+                        <option value="hard">Hard - Expert level</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit" class="btn-primary">Create Room</button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="info-box">
+            <h3>How It Works:</h3>
+            <ul>
+                <li>🎯 Choose your preferred difficulty level</li>
+                <li>🏠 Create a room and share the code with your opponent</li>
+                <li>⚡ Both players solve the same puzzle simultaneously</li>
+                <li>🏆 First to complete wins the race!</li>
+                <li>⏱️ Times are recorded for competitive rankings</li>
+            </ul>
+        </div>
+        
+        <div class="navigation">
+            <a href="{% url 'index' %}" class="btn-secondary">← Back to Home</a>
+        </div>
+    </div>
+</body>
+</html>
