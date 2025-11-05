@@ -87,7 +87,13 @@ class GameConsumer(AsyncWebsocketConsumer):
     
     async def handle_join_game(self, data):
         """Handle player joining a game."""
-        print(f"🎮 Player {self.user.username} (ID: {self.user.id}) attempting to join game {self.code}")
+        print("")
+        print("="*80)
+        print(f"🎮 PLAYER JOIN REQUEST")
+        print(f"👤 Username: {self.user.username}")
+        print(f"🆔 User ID: {self.user.id}")
+        print(f"🎲 Game Code: {self.code}")
+        print("="*80)
         
         # Create or get the game and operate using its id to keep DB work inside sync wrappers
         game_id = await self.get_or_create_game()
@@ -95,7 +101,10 @@ class GameConsumer(AsyncWebsocketConsumer):
 
         # Get player info safely with async calls (by id)
         game_info = await self.get_game_player_info(game_id)
-        print(f"👥 Current game info: Player1={game_info['player1_id']}, Player2={game_info['player2_id']}")
+        print(f"👥 Current game state:")
+        print(f"   - Player 1: {game_info['player1_username']} (ID: {game_info['player1_id']})")
+        print(f"   - Player 2: {game_info['player2_username']} (ID: {game_info['player2_id']})")
+        print(f"   - Status: {await self.get_game_status(game_id)}")
 
         # Fix join logic to be more permissive
         if not game_info['player1_id']:
@@ -139,7 +148,22 @@ class GameConsumer(AsyncWebsocketConsumer):
             game_info = await self.get_game_player_info(game_id)
         elif game_info['player1_id'] == self.user.id or game_info['player2_id'] == self.user.id:
             # Player is already in this game, allow reconnection
-            pass
+            print(f"🔄 Player {self.user.username} reconnecting to game")
+            
+            # Check if race already started - if so, send race_started message
+            game_status = await self.get_game_status(game_id)
+            start_time_iso = await self.get_start_time_iso(game_id)
+            
+            print(f"📊 Current game status: {game_status}, Start time: {start_time_iso}")
+            
+            if game_status in ['in_progress', 'racing'] and start_time_iso:
+                print(f"🏁 Race already in progress, sending race_started to reconnecting player")
+                puzzle = await self.get_puzzle(game_id)
+                await self.safe_send({
+                    'type': 'race_started',
+                    'start_time': start_time_iso,
+                    'puzzle': puzzle,
+                })
         else:
             # Game is full with other players
             await self.safe_send({'error': 'Game is full. Please create a new game.'})
@@ -544,8 +568,9 @@ class GameConsumer(AsyncWebsocketConsumer):
         game = GameSession.objects.get(id=game_id)
         if not game.start_time:
             game.start_time = timezone.now()
-            game.status = 'in_progress'
+            game.status = 'racing'  # Use 'racing' status consistently
             game.save()
+            print(f"✅ Start time set and status changed to 'racing': {game.start_time.isoformat()}")
         return game.start_time.isoformat() if game.start_time else None
 
     @database_sync_to_async
