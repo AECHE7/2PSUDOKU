@@ -1,6 +1,52 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block extra_css %}
+<style>
+  .cell-input.game-finished {
+    background-color: #e8f5e8;
+    border-color: #28a745;
+  }
+
+  .message.success {
+    color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin: 2px 0;
+  }
+
+  .message.info {
+    color: #0c5460;
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin: 2px 0;
+  }
+
+  .modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  .game-finished-overlay {
+    position: relative;
+  }
+
+  .game-finished-overlay::after {
+    content: '🎉';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2em;
+    pointer-events: none;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <h1>🏁 Sudoku Race: {{ game.code }}</h1>
 
@@ -66,8 +112,33 @@
   <div id="game-messages"></div>
   <div class="race-controls">
     <button id="ready-btn" class="btn btn-primary" style="display: none;">I'm Ready!</button>
-    <button id="start-race-btn" class="btn btn-success" style="display: none;">Start Race!</button>
     <button id="finish-btn" class="btn btn-warning" style="display: none;">Submit Solution!</button>
+  </div>
+</div>
+
+<!-- Winner Modal -->
+<div id="winner-modal" class="modal fade" tabindex="-1" aria-labelledby="winnerModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="winnerModalLabel">🎉 Game Over!</h5>
+      </div>
+      <div class="modal-body text-center">
+        <div id="winner-content">
+          <!-- Winner content will be populated by JavaScript -->
+        </div>
+        <div class="mt-3">
+          <h6>Game Statistics:</h6>
+          <div id="game-stats">
+            <!-- Game stats will be populated by JavaScript -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-center">
+        <button type="button" class="btn btn-primary" id="play-again-btn">Play Again</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
   </div>
 </div>
 

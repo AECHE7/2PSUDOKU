@@ -101,8 +101,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       addMessage('Race started — good luck!');
     } else if (data.type === 'race_finished') {
-      addMessage(`${data.winner_username} finished the puzzle in ${data.winner_time}`);
-      stopTimers();
+      handleGameFinished(data);
+    } else if (data.type === 'new_game_created') {
+      handleNewGameCreated(data);
     } else if (data.error) {
       addMessage(`Error: ${data.error}`, 'error');
     }
@@ -144,15 +145,15 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // After each input, check if board is fully filled locally and show finish button
-    if (isLocalBoardComplete()) {
-      showFinishButton();
+    // After each input, check if puzzle is complete and auto-submit
+    if (isLocalBoardComplete() && isLocalBoardValid()) {
+      // Auto-submit the completed puzzle
+      autoSubmitSolution();
     }
   });
 
-  // Ready/start UI
+  // Ready UI
   const readyBtn = document.getElementById('ready-btn');
-  const startRaceBtn = document.getElementById('start-race-btn');
   if (readyBtn) {
     readyBtn.style.display = 'inline-block';
     readyBtn.addEventListener('click', () => {
@@ -161,27 +162,35 @@ document.addEventListener('DOMContentLoaded', () => {
       readyBtn.textContent = 'Waiting for opponent...';
     });
   }
-  if (startRaceBtn && isPlayer1) {
-    // Optionally allow host to force start
-    startRaceBtn.style.display = 'inline-block';
-    startRaceBtn.addEventListener('click', () => {
-      safeSend({ type: 'ready' });
-    });
-  }
 
-  // Finish button
+  // Finish button (kept for manual submission if needed)
   const finishBtn = document.getElementById('finish-btn');
   if (finishBtn) {
     finishBtn.addEventListener('click', () => {
-      // Check if puzzle is complete before submitting
-      if (isLocalBoardComplete()) {
-        safeSend({ type: 'complete' });
-        finishBtn.disabled = true;
-        finishBtn.textContent = 'Submitted!';
-        addMessage('Solution submitted!');
-      } else {
+      if (!gameFinished && isLocalBoardComplete() && isLocalBoardValid()) {
+        autoSubmitSolution();
+      } else if (!isLocalBoardComplete()) {
         addMessage('Please complete the puzzle before submitting!', 'error');
+      } else if (!isLocalBoardValid()) {
+        addMessage('Please fix the errors in your solution!', 'error');
       }
+    });
+  }
+
+  // Play Again button
+  document.addEventListener('click', (e) => {
+    if (e.target.id === 'play-again-btn') {
+      handlePlayAgain();
+    }
+  });
+
+  function handlePlayAgain() {
+    addMessage('Creating new game...', 'info');
+    
+    // Request a new game with the same players
+    safeSend({ 
+      type: 'play_again', 
+      difficulty: gameDataEl.dataset.difficulty 
     });
   }
 
@@ -209,13 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function showFinishButton() {
-    const finishBtn = document.getElementById('finish-btn');
-    if (finishBtn && finishBtn.style.display === 'none') {
-      finishBtn.style.display = 'inline-block';
-      addMessage('Puzzle complete! Click "Submit Solution" to finish.');
-    }
-  }
+
 
   function isLocalBoardComplete() {
     const inputs = document.querySelectorAll('.cell-input');
@@ -223,6 +226,189 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!input.value || input.value === '') return false;
     }
     return true;
+  }
+
+  function isLocalBoardValid() {
+    // Basic validation - check for duplicates in rows, columns, and boxes
+    const inputs = document.querySelectorAll('.cell-input');
+    const board = [];
+    
+    // Convert inputs to 9x9 array
+    for (let row = 0; row < 9; row++) {
+      board[row] = [];
+      for (let col = 0; col < 9; col++) {
+        const input = inputs[row * 9 + col];
+        board[row][col] = parseInt(input.value) || 0;
+      }
+    }
+    
+    return validateSudokuBoard(board);
+  }
+
+  function validateSudokuBoard(board) {
+    // Check rows
+    for (let row = 0; row < 9; row++) {
+      const seen = new Set();
+      for (let col = 0; col < 9; col++) {
+        const val = board[row][col];
+        if (val !== 0) {
+          if (seen.has(val)) return false;
+          seen.add(val);
+        }
+      }
+    }
+    
+    // Check columns
+    for (let col = 0; col < 9; col++) {
+      const seen = new Set();
+      for (let row = 0; row < 9; row++) {
+        const val = board[row][col];
+        if (val !== 0) {
+          if (seen.has(val)) return false;
+          seen.add(val);
+        }
+      }
+    }
+    
+    // Check 3x3 boxes
+    for (let boxRow = 0; boxRow < 3; boxRow++) {
+      for (let boxCol = 0; boxCol < 3; boxCol++) {
+        const seen = new Set();
+        for (let row = boxRow * 3; row < boxRow * 3 + 3; row++) {
+          for (let col = boxCol * 3; col < boxCol * 3 + 3; col++) {
+            const val = board[row][col];
+            if (val !== 0) {
+              if (seen.has(val)) return false;
+              seen.add(val);
+            }
+          }
+        }
+      }
+    }
+    
+    return true;
+  }
+
+  let gameFinished = false;
+  
+  function autoSubmitSolution() {
+    if (gameFinished) return; // Prevent multiple submissions
+    
+    gameFinished = true;
+    addMessage('🎉 Puzzle completed! Submitting solution...', 'success');
+    
+    // Hide finish button since we're auto-submitting
+    const finishBtn = document.getElementById('finish-btn');
+    if (finishBtn) {
+      finishBtn.style.display = 'none';
+    }
+    
+    // Disable all inputs
+    disableAllInputs();
+    
+    // Submit the solution
+    safeSend({ type: 'complete' });
+  }
+
+  function disableAllInputs() {
+    const inputs = document.querySelectorAll('.cell-input');
+    inputs.forEach(input => {
+      input.disabled = true;
+      input.classList.add('game-finished');
+    });
+  }
+
+  function handleGameFinished(data) {
+    gameFinished = true;
+    stopTimers();
+    disableAllInputs();
+    
+    // Hide race controls
+    const raceControls = document.querySelector('.race-controls');
+    if (raceControls) {
+      raceControls.style.display = 'none';
+    }
+    
+    // Show winner message in chat
+    const isWinner = data.winner_id == playerId;
+    const winnerMessage = isWinner ? 
+      `🏆 Congratulations! You won in ${data.winner_time}!` :
+      `${data.winner_username} won in ${data.winner_time}. Better luck next time!`;
+    
+    addMessage(winnerMessage, isWinner ? 'success' : 'info');
+    
+    // Show winner modal
+    showWinnerModal(data, isWinner);
+  }
+
+  function showWinnerModal(data, isWinner) {
+    const modal = document.getElementById('winner-modal');
+    const winnerContent = document.getElementById('winner-content');
+    const gameStats = document.getElementById('game-stats');
+    
+    // Populate winner content
+    if (isWinner) {
+      winnerContent.innerHTML = `
+        <h4 class="text-success">🏆 Congratulations!</h4>
+        <p class="lead">You won the race!</p>
+      `;
+    } else {
+      winnerContent.innerHTML = `
+        <h4 class="text-info">Good Game!</h4>
+        <p class="lead">${data.winner_username} won this round</p>
+      `;
+    }
+    
+    // Populate game stats
+    const difficulty = gameDataEl.dataset.difficulty;
+    gameStats.innerHTML = `
+      <div class="row">
+        <div class="col-6"><strong>Winner:</strong></div>
+        <div class="col-6">${data.winner_username}</div>
+      </div>
+      <div class="row">
+        <div class="col-6"><strong>Time:</strong></div>
+        <div class="col-6">${formatTime(data.winner_time)}</div>
+      </div>
+      <div class="row">
+        <div class="col-6"><strong>Difficulty:</strong></div>
+        <div class="col-6">${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</div>
+      </div>
+    `;
+    
+    // Show modal
+    const bootstrapModal = new bootstrap.Modal(modal);
+    bootstrapModal.show();
+  }
+
+  function formatTime(timeString) {
+    // Parse time string and format nicely
+    try {
+      const parts = timeString.split(':');
+      if (parts.length >= 2) {
+        const minutes = parseInt(parts[1]);
+        const seconds = parseFloat(parts[2]);
+        return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`;
+      }
+    } catch (e) {
+      // Fallback
+    }
+    return timeString;
+  }
+
+  function handleNewGameCreated(data) {
+    addMessage(`New game created! Redirecting to game ${data.game_code}...`, 'success');
+    
+    // Close the modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('winner-modal'));
+    if (modal) {
+      modal.hide();
+    }
+    
+    // Redirect to new game after a short delay
+    setTimeout(() => {
+      window.location.href = `/game/${data.game_code}/`;
+    }, 1500);
   }
   
   function addMessage(text, className = '') {

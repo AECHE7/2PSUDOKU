@@ -64,6 +64,8 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.handle_puzzle_complete(data)
         elif message_type == 'get_board':
             await self.handle_get_board(data)
+        elif message_type == 'play_again':
+            await self.handle_play_again(data)
         elif message_type == 'notification':
             # Handle notification messages (these are usually just client acknowledgments)
             pass
@@ -284,6 +286,37 @@ class GameConsumer(AsyncWebsocketConsumer):
                 'winner_time': result['winner_time'],
             }
         )
+
+    async def handle_play_again(self, data):
+        """Create a new game with the same players."""
+        old_game_id = await self.get_game_id()
+        if not old_game_id:
+            await self.send(text_data=json.dumps({'error': 'Current game not found'}))
+            return
+
+        # Get players from current game
+        old_game_info = await self.get_game_player_info(old_game_id)
+        if not old_game_info['player1_id'] or not old_game_info['player2_id']:
+            await self.send(text_data=json.dumps({'error': 'Both players needed for rematch'}))
+            return
+
+        # Create new game
+        difficulty = data.get('difficulty', 'medium')
+        new_game_code = await self.create_new_game_for_rematch(
+            old_game_info['player1_id'], 
+            old_game_info['player2_id'], 
+            difficulty
+        )
+
+        # Send new game code to both players
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                'type': 'new_game_created',
+                'game_code': new_game_code,
+                'difficulty': difficulty,
+            }
+        )
     
     # Database operations
     @database_sync_to_async
@@ -418,6 +451,44 @@ class GameConsumer(AsyncWebsocketConsumer):
             'winner_username': winner.username,
             'winner_time': str(winner_time),
         }
+
+    @database_sync_to_async
+    def create_new_game_for_rematch(self, player1_id, player2_id, difficulty):
+        """Create a new game with both players for rematch."""
+        import string
+        import random
+        from .sudoku import SudokuPuzzle
+        
+        # Generate new game code
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        
+        # Create new puzzle
+        puzzle = SudokuPuzzle.generate_puzzle(difficulty)
+        board_data = {
+            'puzzle': puzzle.to_dict(),
+            'player1_board': puzzle.to_dict(),
+            'player2_board': puzzle.to_dict(),
+        }
+        
+        # Create new game session
+        game = GameSession.objects.create(
+            code=code,
+            player1_id=player1_id,
+            player2_id=player2_id,
+            board=board_data,
+            difficulty=difficulty,
+            status='ready'  # Both players already known
+        )
+        
+        return code
+
+    async def new_game_created(self, event):
+        """Handle new game creation notification."""
+        await self.send(text_data=json.dumps({
+            'type': 'new_game_created',
+            'game_code': event['game_code'],
+            'difficulty': event['difficulty'],
+        }))
     
     @database_sync_to_async
     def add_player2(self, game_id, user_id):
