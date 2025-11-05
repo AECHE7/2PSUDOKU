@@ -319,7 +319,42 @@ class GameConsumer(AsyncWebsocketConsumer):
         print("✅ race_started message sent to client via WebSocket")
         print("="*60)
 
+        # Also send game_state update to ensure client has latest data
+        game_id = await self.get_game_id()
+        if game_id:
+            puzzle = await self.get_puzzle(game_id)
+            player_board = await self.get_player_board(game_id, self.user.id)
+
+            opponent_id = None
+            game_info = await self.get_game_player_info(game_id)
+            if self.user.id == game_info['player1_id']:
+                opponent_id = game_info['player2_id']
+            else:
+                opponent_id = game_info['player1_id']
+
+            opponent_board = await self.get_player_board(game_id, opponent_id) if opponent_id else puzzle
+
+            await self.safe_send({
+                'type': 'game_state',
+                'puzzle': puzzle,
+                'board': player_board,
+                'opponent_board': opponent_board,
+                'player1': game_info['player1_username'],
+                'player2': game_info['player2_username'],
+                'status': await self.get_game_status(game_id),
+                'start_time': await self.get_start_time_iso(game_id),
+            })
+
     async def race_finished(self, event):
+        print("="*60)
+        print("🏁 RACE_FINISHED EVENT RECEIVED!")
+        print(f"Winner ID: {event.get('winner_id')}")
+        print(f"Winner Username: {event.get('winner_username')}")
+        print(f"Winner Time: {event.get('winner_time')}")
+        print(f"Loser Time: {event.get('loser_time', 'Did not finish')}")
+        print(f"Sending to user: {self.user.username} (ID: {self.user.id})")
+        print("="*60)
+
         await self.safe_send({
             'type': 'race_finished',
             'winner_id': event.get('winner_id'),
@@ -327,6 +362,8 @@ class GameConsumer(AsyncWebsocketConsumer):
             'winner_time': event.get('winner_time'),
             'loser_time': event.get('loser_time', 'Did not finish'),
         })
+        print("✅ race_finished message sent to client")
+        print("="*60)
     
     async def player_disconnected(self, event):
         await self.safe_send({
