@@ -24,6 +24,34 @@ ALL TESTS PASSED! ✓
 
 ## Manual Testing Guide
 
+### Automated Testing with Management Command
+
+The `test_game_flow` command provides comprehensive automated testing:
+
+```bash
+# Basic test (easy difficulty, auto-cleanup)
+python manage.py test_game_flow
+
+# Test with different difficulties
+python manage.py test_game_flow --difficulty medium
+python manage.py test_game_flow --difficulty hard
+
+# Keep game for manual testing
+python manage.py test_game_flow --keep-game
+```
+
+**What it tests:**
+1. User creation/retrieval (testplayer1, testplayer2)
+2. Game creation with unique code
+3. Player joining simulation
+4. Race start with status transitions
+5. Board validation (incomplete vs complete)
+6. Puzzle statistics
+
+**Test user credentials:**
+- Username: `testplayer1` / Password: `testpass123`
+- Username: `testplayer2` / Password: `testpass123`
+
 ### Prerequisites
 - Django development server running on `http://localhost:8000`
 - Two browser windows or tabs for two-player testing
