@@ -12,6 +12,7 @@ from enum import Enum
 
 from django.utils import timezone
 from django.db import transaction
+from channels.db import database_sync_to_async
 
 from .models import GameSession, Move
 from .sudoku import SudokuPuzzle
@@ -428,3 +429,33 @@ class GameStateManager:
                 ).to_dict())
 
         return messages
+
+    @database_sync_to_async
+    def get_current_state_async(self) -> GameStateSnapshot:
+        """Async-safe version of get_current_state."""
+        return self.get_current_state()
+
+    @database_sync_to_async
+    def validate_move_async(self, player_id: int, row: int, col: int, value: int) -> bool:
+        """Async-safe move validation."""
+        return self.validate_move(player_id, row, col, value)
+
+    @database_sync_to_async
+    def record_move_async(self, player_id: int, row: int, col: int, value: int) -> bool:
+        """Async-safe move recording."""
+        return self.record_move(player_id, row, col, value)
+
+    @database_sync_to_async
+    def start_race_async(self) -> Tuple[bool, Optional[str]]:
+        """Async-safe race start."""
+        return self.start_race()
+
+    @database_sync_to_async
+    def complete_puzzle_async(self, player_id: int) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """Async-safe puzzle completion."""
+        return self.complete_puzzle(player_id)
+
+    @database_sync_to_async
+    def get_state_messages_async(self, player_id: int) -> List[Dict[str, Any]]:
+        """Async-safe state messages retrieval."""
+        return self.get_state_messages(player_id)
