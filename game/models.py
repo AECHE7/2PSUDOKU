@@ -13,6 +13,9 @@ class GameSession(models.Model):
         ('finished', 'Game finished'),
         ('abandoned', 'Game abandoned by player'),
     ]
+
+    def __str__(self):
+        return f"Game {self.code} - {self.status}"
     
     DIFFICULTY_CHOICES = [
         ('easy', 'Easy'),
@@ -41,7 +44,10 @@ class Move(models.Model):
     col = models.IntegerField()
     value = models.IntegerField()
     timestamp = models.DateTimeField(default=timezone.now)
-    
+
+    def __str__(self):
+        return f"Move by {self.player.username} at ({self.row},{self.col}): {self.value}"
+
     class Meta:
         ordering = ['timestamp']
 
@@ -69,5 +75,5 @@ class GameResult(models.Model):
         
     def __str__(self):
         if self.result_type == 'forfeit':
-            return f"{self.winner.username} won by forfeit vs {self.loser.username} ({self.difficulty})"
-        return f"{self.winner.username} beat {self.loser.username} in {self.winner_time} ({self.difficulty})"
+            return f"{self.winner.username} won by forfeit vs {self.loser.username if self.loser else 'unknown'} ({self.difficulty})"
+        return f"{self.winner.username} beat {self.loser.username if self.loser else 'unknown'} in {self.winner_time} ({self.difficulty})"

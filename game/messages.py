@@ -73,7 +73,9 @@ class WebSocketMessage:
     def from_json(cls, json_str: str) -> 'WebSocketMessage':
         """Create message from JSON string."""
         data = json.loads(json_str)
-        msg_type = data.pop('type')
+        msg_type = data.pop('type', None)
+        if msg_type is None:
+            raise ValueError("Message must have a 'type' field")
         timestamp = data.pop('timestamp', None)
         return cls(type=msg_type, data=data, timestamp=timestamp)
 
@@ -231,6 +233,94 @@ class NotificationMessage(WebSocketMessage):
         )
 
 
+@dataclass
+class PlayerConnectedMessage(WebSocketMessage):
+    """Player connected to game."""
+    def __init__(self, player_id: int, username: str):
+        super().__init__(
+            type=MessageType.PLAYER_CONNECTED,
+            data={'player_id': player_id, 'username': username}
+        )
+
+
+@dataclass
+class PlayerJoinedMessage(WebSocketMessage):
+    """Player joined the game."""
+    def __init__(self, player_id: int, username: str):
+        super().__init__(
+            type=MessageType.PLAYER_JOINED,
+            data={'player_id': player_id, 'username': username}
+        )
+
+
+@dataclass
+class PlayerDisconnectedMessage(WebSocketMessage):
+    """Player disconnected from game."""
+    def __init__(self, player_id: int, username: str):
+        super().__init__(
+            type=MessageType.PLAYER_DISCONNECTED,
+            data={'player_id': player_id, 'username': username}
+        )
+
+
+@dataclass
+class PlayerLeftGameMessage(WebSocketMessage):
+    """Player left the game."""
+    def __init__(self, player_id: int, username: str):
+        super().__init__(
+            type=MessageType.PLAYER_LEFT_GAME,
+            data={'player_id': player_id, 'username': username}
+        )
+
+
+@dataclass
+class LeaveGameMessage(WebSocketMessage):
+    """Player requests to leave game."""
+    def __init__(self):
+        super().__init__(type=MessageType.LEAVE_GAME, data={})
+
+
+@dataclass
+class LeaveGameConfirmedMessage(WebSocketMessage):
+    """Leave game request confirmed."""
+    def __init__(self):
+        super().__init__(type=MessageType.LEAVE_GAME_CONFIRMED, data={})
+
+
+@dataclass
+class GameProgressUpdateMessage(WebSocketMessage):
+    """Game progress update."""
+    def __init__(self, player_id: int, progress: float):
+        super().__init__(
+            type=MessageType.GAME_PROGRESS_UPDATE,
+            data={'player_id': player_id, 'progress': progress}
+        )
+
+
+@dataclass
+class PuzzleCompleteMessage(WebSocketMessage):
+    """Puzzle completion notification."""
+    def __init__(self, player_id: int, completion_time: int):
+        super().__init__(
+            type=MessageType.PUZZLE_COMPLETE,
+            data={'player_id': player_id, 'completion_time': completion_time}
+        )
+
+
+@dataclass
+class PingMessage(WebSocketMessage):
+    """Ping message."""
+    def __init__(self):
+        super().__init__(type=MessageType.PING, data={})
+
+
+@dataclass
+class PongMessage(WebSocketMessage):
+    """Pong response."""
+    def __init__(self):
+        super().__init__(type=MessageType.PONG, data={})
+
+
 class MessageFactory:
     """Factory for creating message instances."""
 
@@ -240,14 +330,25 @@ class MessageFactory:
         message_classes = {
             MessageType.JOIN_GAME: JoinGameMessage,
             MessageType.GAME_STATE: GameStateMessage,
+            MessageType.PLAYER_CONNECTED: PlayerConnectedMessage,
+            MessageType.PLAYER_JOINED: PlayerJoinedMessage,
+            MessageType.PLAYER_DISCONNECTED: PlayerDisconnectedMessage,
+            MessageType.RACE_STARTED: RaceStartedMessage,
             MessageType.MOVE: MoveMessage,
             MessageType.MOVE_MADE: MoveMadeMessage,
+            MessageType.GAME_PROGRESS_UPDATE: GameProgressUpdateMessage,
+            MessageType.PUZZLE_COMPLETE: PuzzleCompleteMessage,
             MessageType.COMPLETE: CompleteMessage,
             MessageType.RACE_FINISHED: RaceFinishedMessage,
             MessageType.PLAY_AGAIN: PlayAgainMessage,
             MessageType.NEW_GAME_CREATED: NewGameCreatedMessage,
+            MessageType.LEAVE_GAME: LeaveGameMessage,
+            MessageType.PLAYER_LEFT_GAME: PlayerLeftGameMessage,
+            MessageType.LEAVE_GAME_CONFIRMED: LeaveGameConfirmedMessage,
             MessageType.ERROR: ErrorMessage,
             MessageType.NOTIFICATION: NotificationMessage,
+            MessageType.PING: PingMessage,
+            MessageType.PONG: PongMessage,
         }
 
         if msg_type not in message_classes:
@@ -282,18 +383,54 @@ class MessageFactory:
             )
         elif msg_type == MessageType.PLAY_AGAIN:
             return message_classes[msg_type](data.get('difficulty'))
+        elif msg_type == MessageType.PLAYER_CONNECTED:
+            return message_classes[msg_type](
+                data.get('player_id'), data.get('username')
+            )
+        elif msg_type == MessageType.PLAYER_JOINED:
+            return message_classes[msg_type](
+                data.get('player_id'), data.get('username')
+            )
+        elif msg_type == MessageType.PLAYER_DISCONNECTED:
+            return message_classes[msg_type](
+                data.get('player_id'), data.get('username')
+            )
+        elif msg_type == MessageType.RACE_STARTED:
+            return message_classes[msg_type](
+                data.get('start_time'), data.get('puzzle')
+            )
+        elif msg_type == MessageType.GAME_PROGRESS_UPDATE:
+            return message_classes[msg_type](
+                data.get('player_id'), data.get('progress')
+            )
+        elif msg_type == MessageType.PUZZLE_COMPLETE:
+            return message_classes[msg_type](
+                data.get('player_id'), data.get('completion_time')
+            )
         elif msg_type == MessageType.NEW_GAME_CREATED:
             return message_classes[msg_type](
                 data.get('game_code'), data.get('difficulty')
             )
+        elif msg_type == MessageType.PLAYER_LEFT_GAME:
+            return message_classes[msg_type](
+                data.get('player_id'), data.get('username')
+            )
+        elif msg_type == MessageType.LEAVE_GAME:
+            return message_classes[msg_type]()
+        elif msg_type == MessageType.LEAVE_GAME_CONFIRMED:
+            return message_classes[msg_type]()
         elif msg_type == MessageType.ERROR:
             return message_classes[msg_type](
-                data.get('message'), data.get('code')
+                data.get('error') or data.get('message'), data.get('code')
             )
         elif msg_type == MessageType.NOTIFICATION:
             return message_classes[msg_type](
                 data.get('message'), data.get('level')
             )
+        elif msg_type == MessageType.PING:
+            return message_classes[msg_type]()
+        elif msg_type == MessageType.PONG:
+            return message_classes[msg_type]()
 
         # Default case - pass all data to constructor
         return message_classes[msg_type](**data)
@@ -314,13 +451,49 @@ class MessageValidator:
             row = int(data['row'])
             col = int(data['col'])
             value = int(data['value'])
-            
+
             # Check ranges
             if not (0 <= row < 9 and 0 <= col < 9):
                 return False
             if not (0 <= value <= 9):  # 0 is allowed for clearing a cell
                 return False
-                
+
             return True
         except (ValueError, TypeError):
             return False
+
+    @staticmethod
+    def validate_join_game_message(data: Dict[str, Any]) -> bool:
+        """Validate join game message data."""
+        required_fields = ['player_id']
+        if not all(field in data for field in required_fields):
+            return False
+
+        try:
+            player_id = int(data['player_id'])
+            return player_id > 0
+        except (ValueError, TypeError):
+            return False
+
+    @staticmethod
+    def validate_complete_message(data: Dict[str, Any]) -> bool:
+        """Validate complete message data."""
+        required_fields = ['completion_time']
+        if not all(field in data for field in required_fields):
+            return False
+
+        try:
+            completion_time = int(data['completion_time'])
+            return completion_time >= 0
+        except (ValueError, TypeError):
+            return False
+
+    @staticmethod
+    def validate_play_again_message(data: Dict[str, Any]) -> bool:
+        """Validate play again message data."""
+        required_fields = ['difficulty']
+        if not all(field in data for field in required_fields):
+            return False
+
+        difficulty = data['difficulty']
+        return difficulty in ['easy', 'medium', 'hard']

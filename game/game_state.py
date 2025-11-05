@@ -15,7 +15,7 @@ from django.db import transaction
 
 from .models import GameSession, Move
 from .sudoku import SudokuPuzzle
-from .messages import MessageType, GameStateMessage, RaceStartedMessage
+from .messages import MessageType, GameStateMessage, RaceStartedMessage, PuzzleCompleteMessage
 
 logger = logging.getLogger(__name__)
 
@@ -418,5 +418,13 @@ class GameStateManager:
                 start_time=state.start_time.isoformat(),
                 puzzle=state.puzzle
             ).to_dict())
+
+        # Send puzzle complete messages for completed players
+        for pid, pstate in state.players.items():
+            if pstate.has_completed and pstate.completion_time:
+                messages.append(PuzzleCompleteMessage(
+                    player_id=pid,
+                    completion_time=int(pstate.completion_time.total_seconds())
+                ).to_dict())
 
         return messages

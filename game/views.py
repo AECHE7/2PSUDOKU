@@ -128,10 +128,15 @@ def create_game(request):
         difficulty = request.POST.get('difficulty', 'medium')
         if difficulty not in ['easy', 'medium', 'hard']:
             difficulty = 'medium'
-            
-        code = str(uuid.uuid4())[:8].upper()
+
+        # Generate unique code
+        while True:
+            code = str(uuid.uuid4())[:8].upper()
+            if not GameSession.objects.filter(code=code).exists():
+                break
+
         puzzle = SudokuPuzzle.generate_puzzle(difficulty)
-        
+
         game = GameSession.objects.create(
             code=code,
             player1=request.user,
@@ -144,9 +149,9 @@ def create_game(request):
             },
             status='waiting',
         )
-        
+
         return redirect('game_detail', code=code)
-    
+
     # Show difficulty selection form
     return render(request, 'game/create_game.html')
 
@@ -157,11 +162,11 @@ def game_detail(request, code):
         game = GameSession.objects.get(code=code)
     except GameSession.DoesNotExist:
         return render(request, 'game/game_not_found.html', {'code': code})
-    
+
     # Check if user is a player
     is_player1 = game.player1 == request.user
     is_player2 = game.player2 == request.user if game.player2 else False
-    
+
     if not (is_player1 or is_player2):
         # Allow joining if game is waiting
         if game.status == 'waiting' and game.player2 is None:
@@ -171,11 +176,11 @@ def game_detail(request, code):
             is_player2 = True
         else:
             return render(request, 'game/cannot_join.html', {'game': game})
-    
+
     # Get the correct board state for this player
     player_key = 'player1_board' if is_player1 else 'player2_board'
     board = game.board.get(player_key, game.board.get('puzzle', []))
-    
+
     return render(request, 'game/game_board.html', {
         'game': game,
         'board': board,

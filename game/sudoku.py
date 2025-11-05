@@ -36,6 +36,7 @@ class SudokuPuzzle:
     
     def _generate_full_solution(self):
         """Generate a complete valid Sudoku solution."""
+        # Find next empty cell
         for row in range(9):
             for col in range(9):
                 if self.board[row][col] == 0:
@@ -90,8 +91,10 @@ class SudokuPuzzle:
         """Check if a move is valid (used during gameplay)."""
         if not (0 <= row < 9 and 0 <= col < 9):
             return False
-        if num < 1 or num > 9:
+        if num < 0 or num > 9:  # Allow 0 for clearing cells
             return False
+        if num == 0:
+            return True  # Clearing is always allowed
         return self._is_valid_move(row, col, num)
     
     def is_complete(self) -> bool:
@@ -107,18 +110,18 @@ class SudokuPuzzle:
         if not self.solution:
             # If no solution stored, fall back to validation
             return self.is_complete()
-        
+
         # Check if all cells are filled
         for row in self.board:
             if 0 in row:
                 return False
-        
+
         # Compare with solution
         for row in range(9):
             for col in range(9):
                 if self.board[row][col] != self.solution[row][col]:
                     return False
-        
+
         return True
     
     def _is_valid_solution(self) -> bool:

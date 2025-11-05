@@ -15,7 +15,9 @@ from django.db import transaction
 from .messages import (
     MessageType, MessageFactory, MessageValidator,
     JoinGameMessage, MoveMessage, CompleteMessage,
-    ErrorMessage, NotificationMessage
+    ErrorMessage, NotificationMessage, PlayerConnectedMessage,
+    PlayerJoinedMessage, PlayerDisconnectedMessage, PlayerLeftGameMessage,
+    LeaveGameMessage, LeaveGameConfirmedMessage, PingMessage, PongMessage
 )
 from .game_state import GameStateManager
 from .models import GameSession
@@ -66,6 +68,17 @@ class GameConsumer(AsyncWebsocketConsumer):
 
         logger.info(f"Player {self.user.username} connected to game {self.game_code}")
 
+        # Notify group of connection
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                'type': 'player_event',
+                'event_type': 'connected',
+                'username': self.user.username,
+                'user_id': self.user.id,
+            }
+        )
+
         # Send initial state synchronization
         await self.send_state_sync()
 
@@ -98,10 +111,30 @@ class GameConsumer(AsyncWebsocketConsumer):
         try:
             # Parse and validate message
             raw_message = json.loads(text_data)
-            message = MessageFactory.create_message(
-                raw_message.get('type'),
-                raw_message
-            )
+            msg_type = raw_message.get('type')
+            if not msg_type:
+                await self.send_error("Message must have a 'type' field")
+                return
+
+            # Validate message based on type
+            if msg_type == MessageType.MOVE:
+                if not MessageValidator.validate_move_message(raw_message):
+                    await self.send_error("Invalid move message")
+                    return
+            elif msg_type == MessageType.JOIN_GAME:
+                if not MessageValidator.validate_join_game_message(raw_message):
+                    await self.send_error("Invalid join game message")
+                    return
+            elif msg_type == MessageType.COMPLETE:
+                if not MessageValidator.validate_complete_message(raw_message):
+                    await self.send_error("Invalid complete message")
+                    return
+            elif msg_type == MessageType.PLAY_AGAIN:
+                if not MessageValidator.validate_play_again_message(raw_message):
+                    await self.send_error("Invalid play again message")
+                    return
+
+            message = MessageFactory.create_message(msg_type, raw_message)
 
             # Route message to appropriate handler
             await self.route_message(message)
@@ -120,6 +153,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             MessageType.COMPLETE: self.handle_complete,
             MessageType.PLAY_AGAIN: self.handle_play_again,
             MessageType.LEAVE_GAME: self.handle_leave_game,
+            MessageType.PING: self.handle_ping,
         }
 
         handler = handlers.get(message.type)
@@ -243,7 +277,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error in handle_play_again: {e}")
             await self.send_error("Failed to create new game")
 
-    async def handle_leave_game(self, message):
+    async def handle_leave_game(self, message: LeaveGameMessage):
         """Handle player leaving game."""
         try:
             # Mark game as abandoned
@@ -260,12 +294,24 @@ class GameConsumer(AsyncWebsocketConsumer):
                 }
             )
 
+            # Send confirmation
+            leave_confirmed = LeaveGameConfirmedMessage()
+            await self.send(text_data=json.dumps(leave_confirmed.to_dict()))
+
             # Close connection
             await self.close()
 
         except Exception as e:
             logger.error(f"Error in handle_leave_game: {e}")
             await self.send_error("Failed to leave game")
+
+    async def handle_ping(self, message: PingMessage):
+        """Handle ping message."""
+        try:
+            pong = PongMessage()
+            await self.send(text_data=json.dumps(pong.to_dict()))
+        except Exception as e:
+            logger.error(f"Error in handle_ping: {e}")
 
     # Group Event Handlers
 
@@ -274,11 +320,17 @@ class GameConsumer(AsyncWebsocketConsumer):
         event_type = event['event_type']
 
         if event_type == 'joined':
-            await self.send_notification(f"{event['username']} joined the game")
+            player_joined = PlayerJoinedMessage(event['user_id'], event['username'])
+            await self.send(text_data=json.dumps(player_joined.to_dict()))
+        elif event_type == 'connected':
+            player_connected = PlayerConnectedMessage(event['user_id'], event['username'])
+            await self.send(text_data=json.dumps(player_connected.to_dict()))
         elif event_type == 'disconnected':
-            await self.send_notification(f"{event['username']} disconnected")
+            player_disconnected = PlayerDisconnectedMessage(event['user_id'], event['username'])
+            await self.send(text_data=json.dumps(player_disconnected.to_dict()))
         elif event_type == 'left_game':
-            await self.send_notification(f"{event['username']} left the game")
+            player_left = PlayerLeftGameMessage(event['user_id'], event['username'])
+            await self.send(text_data=json.dumps(player_left.to_dict()))
 
     async def game_event(self, event):
         """Handle game-related events."""
