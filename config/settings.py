@@ -199,7 +199,7 @@ print(f"Using Redis URL: {REDIS_URL}")  # Debug log
 # Use django-redis in production for better performance and features
 # Falls back to in-memory cache in development if django-redis is not available
 try:
-    import django_redis
+    import django_redis  # type: ignore
     CACHES = {
         'default': {
             'BACKEND': 'django_redis.cache.RedisCache',
