@@ -1,16 +1,287 @@
 {% extends 'base.html' %}
 
+{% block title %}Sign Up - Sudoku Race{% endblock %}
+
+{% block extra_css %}
+<style>
+  .auth-container {
+    max-width: 400px;
+    margin: 60px auto;
+    padding: 0 20px;
+  }
+
+  .auth-card {
+    background: white;
+    border-radius: 12px;
+    padding: 40px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    text-align: center;
+  }
+
+  .auth-header {
+    margin-bottom: 30px;
+  }
+
+  .auth-icon {
+    font-size: 3rem;
+    color: #4caf50;
+    margin-bottom: 20px;
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+    text-align: left;
+  }
+
+  .form-control {
+    border-radius: 8px;
+    border: 2px solid #e0e0e0;
+    padding: 12px 16px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+  }
+
+  .form-control:focus {
+    border-color: #4caf50;
+    box-shadow: 0 0 0 0.2rem rgba(76, 175, 80, 0.25);
+  }
+
+  .auth-btn {
+    background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+    border: none;
+    color: white;
+    padding: 12px 30px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border-radius: 25px;
+    width: 100%;
+    transition: all 0.3s ease;
+    margin: 20px 0;
+  }
+
+  .auth-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+  }
+
+  .auth-link {
+    color: #2196f3;
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .auth-link:hover {
+    text-decoration: underline;
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    margin: 30px 0;
+    color: #666;
+  }
+
+  .divider::before,
+  .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e0e0e0;
+  }
+
+  .divider span {
+    padding: 0 15px;
+    font-size: 0.9rem;
+  }
+
+  .password-strength {
+    font-size: 0.8rem;
+    margin-top: 5px;
+    color: #666;
+  }
+
+  .benefits {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 30px;
+    text-align: left;
+  }
+
+  .benefit-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .benefit-item i {
+    color: #4caf50;
+    margin-right: 10px;
+    width: 16px;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<h2>Register</h2>
-{% if error %}
-  <p style="color: red;">{{ error }}</p>
-{% endif %}
-<form method="post">
-  {% csrf_token %}
-  <input type="text" name="username" placeholder="Username" required>
-  <input type="password" name="password" placeholder="Password" required>
-  <input type="password" name="password_confirm" placeholder="Confirm password" required>
-  <button type="submit">Register</button>
-</form>
-<p>Already have an account? <a href="{% url 'login' %}">Login here</a></p>
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-icon">
+        <i class="fas fa-user-plus"></i>
+      </div>
+      <h2>Join the Race!</h2>
+      <p class="text-muted">Create your account to start competing</p>
+    </div>
+
+    {% if error %}
+      <div class="alert alert-danger" role="alert">
+        <i class="fas fa-exclamation-triangle"></i>
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <form method="post" id="register-form">
+      {% csrf_token %}
+      
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" 
+               class="form-control" 
+               id="username"
+               name="username" 
+               placeholder="Choose a unique username" 
+               required
+               minlength="3"
+               maxlength="20"
+               autocomplete="username">
+        <small class="form-text text-muted">3-20 characters, letters and numbers only</small>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" 
+               class="form-control" 
+               id="password"
+               name="password" 
+               placeholder="Create a strong password" 
+               required
+               minlength="6"
+               autocomplete="new-password">
+        <div class="password-strength" id="password-strength"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="password_confirm">Confirm Password</label>
+        <input type="password" 
+               class="form-control" 
+               id="password_confirm"
+               name="password_confirm" 
+               placeholder="Confirm your password" 
+               required
+               autocomplete="new-password">
+        <div id="password-match" class="password-strength"></div>
+      </div>
+
+      <button type="submit" class="auth-btn">
+        <i class="fas fa-rocket"></i> Start Racing
+      </button>
+    </form>
+
+    <div class="divider">
+      <span>Already racing?</span>
+    </div>
+
+    <p class="mb-0">
+      <a href="{% url 'login' %}" class="auth-link">
+        <i class="fas fa-sign-in-alt"></i> Sign in to your account
+      </a>
+    </p>
+  </div>
+
+  <!-- Benefits -->
+  <div class="benefits">
+    <h6><i class="fas fa-star"></i> What you get:</h6>
+    <div class="benefit-item">
+      <i class="fas fa-trophy"></i>
+      <span>Track your wins and solve times</span>
+    </div>
+    <div class="benefit-item">
+      <i class="fas fa-users"></i>
+      <span>Challenge friends to races</span>
+    </div>
+    <div class="benefit-item">
+      <i class="fas fa-chart-line"></i>
+      <span>See your improvement over time</span>
+    </div>
+    <div class="benefit-item">
+      <i class="fas fa-medal"></i>
+      <span>Compete on leaderboards</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// Password strength indicator
+document.getElementById('password').addEventListener('input', function() {
+  const password = this.value;
+  const strengthDiv = document.getElementById('password-strength');
+  
+  let strength = 0;
+  let feedback = '';
+  
+  if (password.length >= 6) strength++;
+  if (password.match(/[a-z]/)) strength++;
+  if (password.match(/[A-Z]/)) strength++;
+  if (password.match(/[0-9]/)) strength++;
+  if (password.match(/[^a-zA-Z0-9]/)) strength++;
+  
+  switch(strength) {
+    case 0:
+    case 1:
+      feedback = '<span style="color: #f44336;">Weak password</span>';
+      break;
+    case 2:
+    case 3:
+      feedback = '<span style="color: #ff9800;">Medium strength</span>';
+      break;
+    case 4:
+    case 5:
+      feedback = '<span style="color: #4caf50;">Strong password</span>';
+      break;
+  }
+  
+  strengthDiv.innerHTML = feedback;
+});
+
+// Password match checker
+document.getElementById('password_confirm').addEventListener('input', function() {
+  const password = document.getElementById('password').value;
+  const confirm = this.value;
+  const matchDiv = document.getElementById('password-match');
+  
+  if (confirm === '') {
+    matchDiv.innerHTML = '';
+  } else if (password === confirm) {
+    matchDiv.innerHTML = '<span style="color: #4caf50;"><i class="fas fa-check"></i> Passwords match</span>';
+  } else {
+    matchDiv.innerHTML = '<span style="color: #f44336;"><i class="fas fa-times"></i> Passwords do not match</span>';
+  }
+});
+
+// Form submission
+document.getElementById('register-form').addEventListener('submit', function(e) {
+  const password = document.getElementById('password').value;
+  const confirm = document.getElementById('password_confirm').value;
+  
+  if (password !== confirm) {
+    e.preventDefault();
+    alert('Passwords do not match!');
+    return false;
+  }
+  
+  const submitBtn = this.querySelector('.auth-btn');
+  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
+  submitBtn.disabled = true;
+});
+</script>
 {% endblock %}

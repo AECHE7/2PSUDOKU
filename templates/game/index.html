@@ -1,56 +1,272 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block extra_css %}
+<style>
+  .hero-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 60px 0;
+    text-align: center;
+    margin: -20px -15px 40px -15px;
+  }
+
+  .hero-title {
+    font-size: 3.5rem;
+    font-weight: bold;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+  }
+
+  .hero-subtitle {
+    font-size: 1.3rem;
+    margin-bottom: 30px;
+    opacity: 0.9;
+  }
+
+  .action-section {
+    margin: 40px 0;
+  }
+
+  .action-card {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .action-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+  }
+
+  .action-icon {
+    font-size: 3rem;
+    margin-bottom: 20px;
+  }
+
+  .games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+  }
+
+  .game-card {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    border-left: 4px solid #2196f3;
+    transition: transform 0.3s ease;
+  }
+
+  .game-card:hover {
+    transform: translateY(-3px);
+  }
+
+  .game-code {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: #2196f3;
+    font-family: 'Courier New', monospace;
+  }
+
+  .difficulty-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+
+  .difficulty-easy { background: #e8f5e8; color: #2e7d32; }
+  .difficulty-medium { background: #fff3e0; color: #f57c00; }
+  .difficulty-hard { background: #ffebee; color: #c62828; }
+
+  .rules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 25px;
+    margin-top: 30px;
+  }
+
+  .rule-card {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+  }
+
+  .rule-card:hover {
+    transform: translateY(-3px);
+  }
+
+  .rule-number {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin: 0 auto 15px auto;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #666;
+  }
+
+  .empty-state-icon {
+    font-size: 4rem;
+    margin-bottom: 20px;
+    opacity: 0.5;
+  }
+
+  @media (max-width: 768px) {
+    .hero-title { font-size: 2.5rem; }
+    .hero-subtitle { font-size: 1.1rem; }
+    .games-grid { grid-template-columns: 1fr; }
+    .rules-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<h1>🏁 2P Sudoku Race</h1>
-<p class="subtitle">Compete head-to-head to solve Sudoku puzzles!</p>
+<!-- Hero Section -->
+<div class="hero-section">
+  <div class="container">
+    <h1 class="hero-title">� Sudoku Race</h1>
+    <p class="hero-subtitle">Challenge friends to head-to-head Sudoku battles!</p>
+    <a href="{% url 'create_game' %}" class="btn btn-light btn-lg px-4 py-2">
+      <i class="fas fa-plus"></i> Start New Race
+    </a>
+  </div>
+</div>
 
-<section>
-  <h2>🎮 Create a New Race</h2>
-  <a href="{% url 'create_game' %}" class="btn btn-primary">Create New Game Room</a>
-  <p>Choose difficulty and create a room for competitive solving</p>
-</section>
-
-<section>
-  <h2>🚪 Join a Waiting Room</h2>
-  {% if games %}
-    <div class="games-list">
-      {% for game in games %}
-        <div class="game-card">
-          <h3>Room: {{ game.code }}</h3>
-          <p>Host: {{ game.player1.username }}</p>
-          <p>Difficulty: <span class="difficulty-{{ game.difficulty }}">{{ game.get_difficulty_display }}</span></p>
-          <p>Status: {{ game.get_status_display }}</p>
-          <a href="{% url 'game_detail' game.code %}" class="btn btn-join">Join Race</a>
-        </div>
-      {% endfor %}
+<div class="container">
+  <!-- Quick Actions -->
+  <div class="row action-section">
+    <div class="col-md-6 mb-4">
+      <div class="action-card">
+        <div class="action-icon">🎮</div>
+        <h3>Create New Race</h3>
+        <p class="text-muted">Set up a new game room with your preferred difficulty level</p>
+        <a href="{% url 'create_game' %}" class="btn btn-primary btn-lg">Create Room</a>
+      </div>
     </div>
-  {% else %}
-    <p>No games waiting for players. Create one to start racing! 🚀</p>
-  {% endif %}
-</section>
-
-<section class="how-to-play">
-  <h2>🏆 How to Play</h2>
-  <div class="rules">
-    <div class="rule">
-      <h4>1. Create or Join</h4>
-      <p>Create a room with your preferred difficulty or join an existing one</p>
-    </div>
-    <div class="rule">
-      <h4>2. Race to Solve</h4>
-      <p>Both players solve the same Sudoku puzzle simultaneously</p>
-    </div>
-    <div class="rule">
-      <h4>3. Win the Race</h4>
-      <p>First player to complete the puzzle wins!</p>
-    </div>
-    <div class="rule">
-      <h4>4. Track Records</h4>
-      <p>Your solve times and wins are recorded for bragging rights</p>
+    <div class="col-md-6 mb-4">
+      <div class="action-card">
+        <div class="action-icon">🚪</div>
+        <h3>Join Existing Race</h3>
+        <p class="text-muted">Jump into games that are waiting for a second player</p>
+        <button class="btn btn-outline-primary btn-lg" onclick="document.getElementById('available-games').scrollIntoView()">
+          Browse Games
+        </button>
+      </div>
     </div>
   </div>
-</section>
 
-<script src="{% static 'game/game.js' %}"></script>
+  <!-- Available Games -->
+  <section id="available-games" class="mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2><i class="fas fa-list"></i> Available Games</h2>
+      <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+        <i class="fas fa-refresh"></i> Refresh
+      </button>
+    </div>
+    
+    {% if games %}
+      <div class="games-grid">
+        {% for game in games %}
+          <div class="game-card">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div class="game-code">{{ game.code }}</div>
+              <span class="difficulty-badge difficulty-{{ game.difficulty }}">
+                {{ game.difficulty }}
+              </span>
+            </div>
+            
+            <h5 class="mb-2">
+              <i class="fas fa-user"></i> {{ game.player1.username }}
+            </h5>
+            
+            <div class="mb-3">
+              <small class="text-muted">
+                <i class="fas fa-clock"></i> 
+                Created {{ game.created_at|timesince }} ago
+              </small>
+            </div>
+            
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="badge bg-success">{{ game.get_status_display }}</span>
+              <a href="{% url 'game_detail' game.code %}" class="btn btn-primary">
+                <i class="fas fa-play"></i> Join Race
+              </a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-state-icon">🎯</div>
+        <h4>No Active Games</h4>
+        <p class="mb-4">Be the first to create a race room and challenge others!</p>
+        <a href="{% url 'create_game' %}" class="btn btn-primary btn-lg">
+          <i class="fas fa-plus"></i> Create First Game
+        </a>
+      </div>
+    {% endif %}
+  </section>
+
+  <!-- How to Play -->
+  <section class="mb-5">
+    <h2 class="text-center mb-4"><i class="fas fa-question-circle"></i> How to Play</h2>
+    <div class="rules-grid">
+      <div class="rule-card">
+        <div class="rule-number">1</div>
+        <h4>Create or Join</h4>
+        <p>Start a new race room or join someone else's game. Choose your difficulty wisely!</p>
+      </div>
+      <div class="rule-card">
+        <div class="rule-number">2</div>
+        <h4>Get Ready</h4>
+        <p>Both players must click "Ready" to start the race. Make sure you're prepared!</p>
+      </div>
+      <div class="rule-card">
+        <div class="rule-number">3</div>
+        <h4>Race to Solve</h4>
+        <p>Solve the same Sudoku puzzle as fast as possible. Speed and accuracy matter!</p>
+      </div>
+      <div class="rule-card">
+        <div class="rule-number">4</div>
+        <h4>Win Glory</h4>
+        <p>First to complete wins the race! Your times are recorded for future bragging rights.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+// Auto-refresh games list every 30 seconds
+setInterval(() => {
+  const gamesSection = document.getElementById('available-games');
+  if (gamesSection) {
+    // Only refresh if user hasn't scrolled away from games section
+    const rect = gamesSection.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) {
+      location.reload();
+    }
+  }
+}, 30000);
+</script>
 {% endblock %}

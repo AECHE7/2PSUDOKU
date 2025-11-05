@@ -1,7 +1,122 @@
 {% extends 'base.html' %}
 
+{% block title %}Cannot Join Game - Sudoku Race{% endblock %}
+
+{% block extra_css %}
+<style>
+  .error-container {
+    max-width: 500px;
+    margin: 80px auto;
+    text-align: center;
+    padding: 0 20px;
+  }
+
+  .error-card {
+    background: white;
+    border-radius: 12px;
+    padding: 40px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  }
+
+  .error-icon {
+    font-size: 4rem;
+    color: #ff9800;
+    margin-bottom: 20px;
+  }
+
+  .error-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 30px;
+    flex-wrap: wrap;
+  }
+
+  .game-info {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    text-align: left;
+  }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .info-row:last-child {
+    margin-bottom: 0;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<h2>Cannot Join Game</h2>
-<p>You cannot join this game. It is either full or already in progress.</p>
-<p><a href="{% url 'index' %}">Return to lobby</a></p>
+<div class="error-container">
+  <div class="error-card">
+    <div class="error-icon">
+      <i class="fas fa-door-closed"></i>
+    </div>
+    
+    <h2 class="text-warning">Game Room Unavailable</h2>
+    <p class="lead text-muted mb-4">
+      Sorry, you cannot join this game room at the moment.
+    </p>
+
+    {% if game %}
+      <div class="game-info">
+        <h6><i class="fas fa-info-circle"></i> Game Details:</h6>
+        <div class="info-row">
+          <span><strong>Room Code:</strong></span>
+          <span class="font-monospace">{{ game.code }}</span>
+        </div>
+        <div class="info-row">
+          <span><strong>Host:</strong></span>
+          <span>{{ game.player1.username }}</span>
+        </div>
+        <div class="info-row">
+          <span><strong>Status:</strong></span>
+          <span class="badge bg-secondary">{{ game.get_status_display }}</span>
+        </div>
+        <div class="info-row">
+          <span><strong>Players:</strong></span>
+          <span>
+            {% if game.player2 %}
+              2/2 (Full)
+            {% else %}
+              1/2 (Waiting)
+            {% endif %}
+          </span>
+        </div>
+      </div>
+
+      <div class="alert alert-info">
+        <i class="fas fa-lightbulb"></i>
+        <strong>Possible reasons:</strong>
+        <ul class="mb-0 mt-2 text-start">
+          <li>The game room is already full (2/2 players)</li>
+          <li>The race has already started or finished</li>
+          <li>You're trying to rejoin a game you're not part of</li>
+        </ul>
+      </div>
+    {% endif %}
+
+    <div class="error-actions">
+      <a href="{% url 'index' %}" class="btn btn-primary">
+        <i class="fas fa-home"></i> Browse Games
+      </a>
+      <a href="{% url 'create_game' %}" class="btn btn-success">
+        <i class="fas fa-plus"></i> Create New Game
+      </a>
+    </div>
+
+    <hr class="my-4">
+    
+    <small class="text-muted">
+      <i class="fas fa-question-circle"></i>
+      Having trouble? Try refreshing the page or creating your own game room.
+    </small>
+  </div>
+</div>
 {% endblock %}
