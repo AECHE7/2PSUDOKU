@@ -66,11 +66,16 @@ class GameConsumer(AsyncWebsocketConsumer):
         """Handle player joining a game."""
         game = await self.get_or_create_game()
         
-        if game.player2 is None and game.player1.id != self.user.id:
+        # Get player info safely with async calls
+        game_info = await self.get_game_player_info(game)
+        
+        if not game_info['player2_id'] and game_info['player1_id'] != self.user.id:
             # Add second player
             await self.add_player2(game, self.user)
             await self.start_game(game)
-        elif game.player2 and (game.player1.id == self.user.id or game.player2.id == self.user.id):
+            # Refresh game info after adding player
+            game_info = await self.get_game_player_info(game)
+        elif game_info['player2_id'] and (game_info['player1_id'] == self.user.id or game_info['player2_id'] == self.user.id):
             # Rejoin existing game
             pass
         else:
@@ -82,8 +87,8 @@ class GameConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             'type': 'game_state',
             'board': board_state,
-            'player1': game.player1.username,
-            'player2': game.player2.username if game.player2 else None,
+            'player1': game_info['player1_username'],
+            'player2': game_info['player2_username'],
         }))
     
     async def handle_move(self, data):
@@ -101,8 +106,9 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({'error': 'Game not found'}))
             return
         
-        # Check if it's this player's turn
-        if game.current_turn.id != self.user.id:
+        # Check if it's this player's turn (async-safe)
+        current_turn_id = await self.get_current_turn_id(game)
+        if current_turn_id != self.user.id:
             await self.send(text_data=json.dumps({'error': 'Not your turn'}))
             return
         
@@ -122,10 +128,9 @@ class GameConsumer(AsyncWebsocketConsumer):
         game.board['current'] = new_board
         await self.update_game_board(game, new_board)
         
-        # Switch current turn
-        next_player = game.player2 if game.current_turn.id == game.player1.id else game.player1
-        game.current_turn = next_player
-        await self.update_game_turn(game, next_player)
+        # Switch current turn (async-safe)
+        next_player_info = await self.switch_turn(game)
+        await self.update_game_turn(game, next_player_info['next_player_id'])
         
         # Broadcast the move to all players
         await self.channel_layer.group_send(
@@ -136,8 +141,8 @@ class GameConsumer(AsyncWebsocketConsumer):
                 'row': row,
                 'col': col,
                 'value': value,
-                'next_player_id': next_player.id,
-                'next_player_username': next_player.username,
+                'next_player_id': next_player_info['next_player_id'],
+                'next_player_username': next_player_info['next_player_username'],
             }
         )
     
@@ -241,8 +246,10 @@ class GameConsumer(AsyncWebsocketConsumer):
         game.save()
     
     @database_sync_to_async
-    def update_game_turn(self, game, next_player):
+    def update_game_turn(self, game, next_player_id):
         """Update whose turn it is."""
+        from django.contrib.auth.models import User
+        next_player = User.objects.get(id=next_player_id)
         game.current_turn = next_player
         game.save()
     
@@ -252,4 +259,32 @@ class GameConsumer(AsyncWebsocketConsumer):
         board = game.board.get('current', [])
         # Ensure it's a list of lists, not a reference issue
         return [list(row) if isinstance(row, (list, tuple)) else row for row in board]
+    
+    @database_sync_to_async
+    def get_game_player_info(self, game):
+        """Get player information safely for async context."""
+        return {
+            'player1_id': game.player1.id if game.player1 else None,
+            'player1_username': game.player1.username if game.player1 else None,
+            'player2_id': game.player2.id if game.player2 else None, 
+            'player2_username': game.player2.username if game.player2 else None,
+        }
+    
+    @database_sync_to_async
+    def get_current_turn_id(self, game):
+        """Get current turn player ID safely."""
+        return game.current_turn.id if game.current_turn else None
+    
+    @database_sync_to_async
+    def switch_turn(self, game):
+        """Switch to next player and return info."""
+        if game.current_turn.id == game.player1.id:
+            next_player = game.player2
+        else:
+            next_player = game.player1
+            
+        return {
+            'next_player_id': next_player.id,
+            'next_player_username': next_player.username,
+        }
 
