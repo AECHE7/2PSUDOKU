@@ -403,58 +403,64 @@ class GameConsumer(AsyncWebsocketConsumer):
         """Handle a player's reported completion; verify and finalize result."""
         print("🏁 PUZZLE COMPLETION REQUEST RECEIVED")
         print(f"👤 Player: {self.user.username} (ID: {self.user.id})")
-        
-        game_id = await self.get_game_id()
-        if not game_id:
-            print("❌ Game not found!")
-            await self.send(text_data=json.dumps({'error': 'Game not found'}))
-            return
+        try:
+            game_id = await self.get_game_id()
+            if not game_id:
+                print("❌ Game not found!")
+                await self.send(text_data=json.dumps({'error': 'Game not found'}))
+                return
 
-        print(f"📝 Game ID: {game_id}")
-        print("🔍 Verifying player's board against solution...")
-        
-        # Get both the player's board and the solution
-        board = await self.get_player_board(game_id, self.user.id)
-        solution = await self.get_solution(game_id)
-        print(f"📋 Board retrieved: {len(board)} rows")
-        print(f"✅ Solution retrieved: {len(solution) if solution else 0} rows")
-        
-        puzzle = SudokuPuzzle.from_dict({'board': board, 'solution': solution})
-        print("🧩 Checking if puzzle matches solution...")
-        
-        is_complete = puzzle.matches_solution()
-        print(f"✅ Puzzle matches solution: {is_complete}")
-        
-        if not is_complete:
-            print("❌ Board does not match the correct solution!")
-            await self.send(text_data=json.dumps({'error': 'Your solution is incorrect. Keep trying!'}))
-            return
+            print(f"📝 Game ID: {game_id}")
+            print("🔍 Verifying player's board against solution...")
+            
+            # Get both the player's board and the solution
+            board = await self.get_player_board(game_id, self.user.id)
+            solution = await self.get_solution(game_id)
+            print(f"📋 Board retrieved: {len(board)} rows")
+            print(f"✅ Solution retrieved: {len(solution) if solution else 0} rows")
+            
+            puzzle = SudokuPuzzle.from_dict({'board': board, 'solution': solution})
+            print("🧩 Checking if puzzle matches solution...")
+            
+            is_complete = puzzle.matches_solution()
+            print(f"✅ Puzzle matches solution: {is_complete}")
+            
+            if not is_complete:
+                print("❌ Board does not match the correct solution!")
+                await self.send(text_data=json.dumps({'error': 'Your solution is incorrect. Keep trying!'}))
+                return
 
-        print("🏆 Finalizing result...")
-        # Finalize result (db-side)
-        result = await self.finalize_result(game_id, self.user.id)
-        print(f"🎉 Result finalized: {result}")
+            print("🏆 Finalizing result...")
+            # Finalize result (db-side)
+            result = await self.finalize_result(game_id, self.user.id)
+            print(f"🎉 Result finalized: {result}")
 
-        print("📡 Broadcasting race_finished to all players...")
-        print(f"   Winner ID: {result['winner_id']}")
-        print(f"   Winner Username: {result['winner_username']}")
-        print(f"   Winner Time: {result['winner_time']}")
-        print(f"   Loser Time: {result.get('loser_time', 'Did not finish')}")
-        print(f"   Group Name: {self.group_name}")
-        
-        # Broadcast finish immediately
-        await self.channel_layer.group_send(
-            self.group_name,
-            {
-                'type': 'race_finished',
-                'winner_id': result['winner_id'],
-                'winner_username': result['winner_username'],
-                'winner_time': result['winner_time'],
-                'loser_time': result.get('loser_time', 'Did not finish'),
-            }
-        )
-        print("✅ race_finished broadcast completed!")
-        print("="*60)
+            print("📡 Broadcasting race_finished to all players...")
+            print(f"   Winner ID: {result['winner_id']}")
+            print(f"   Winner Username: {result['winner_username']}")
+            print(f"   Winner Time: {result['winner_time']}")
+            print(f"   Loser Time: {result.get('loser_time', 'Did not finish')}")
+            print(f"   Group Name: {self.group_name}")
+            
+            # Broadcast finish immediately
+            await self.channel_layer.group_send(
+                self.group_name,
+                {
+                    'type': 'race_finished',
+                    'winner_id': result['winner_id'],
+                    'winner_username': result['winner_username'],
+                    'winner_time': result['winner_time'],
+                    'loser_time': result.get('loser_time', 'Did not finish'),
+                }
+            )
+            print("✅ race_finished broadcast completed!")
+            print("="*60)
+        except Exception as e:
+            # Never crash the socket; report the error and keep connection alive
+            import traceback
+            print("❌ Error during handle_puzzle_complete:", e)
+            traceback.print_exc()
+            await self.safe_send({'error': 'Server error while finalizing result. Please try again.'})
 
     async def handle_play_again(self, data):
         """Create a new game with the same players."""
@@ -553,6 +559,9 @@ class GameConsumer(AsyncWebsocketConsumer):
             puzzle = SudokuPuzzle.generate_puzzle('medium')
             game.board = {
                 'puzzle': [list(row) for row in puzzle.board],
+                'solution': [list(row) for row in puzzle.solution],
+                'player1_board': [list(row) for row in puzzle.board],
+                'player2_board': [list(row) for row in puzzle.board],
                 'current': [list(row) for row in puzzle.board],
             }
 
@@ -649,6 +658,18 @@ class GameConsumer(AsyncWebsocketConsumer):
             loser = game.player2
         else:
             loser = game.player1
+
+        # Idempotent: if a result already exists, reuse it
+        if hasattr(game, 'result'):
+            existing = game.result
+            total_sec = int(existing.winner_time.total_seconds()) if existing.winner_time else 0
+            wm, ws = divmod(total_sec, 60)
+            return {
+                'winner_id': existing.winner.id,
+                'winner_username': existing.winner.username,
+                'winner_time': f"{wm:02d}:{ws:02d}",
+                'loser_time': 'Did not finish' if not existing.loser_time else str(existing.loser_time),
+            }
 
         # Compute winner time
         if game.start_time:
@@ -748,7 +769,8 @@ class GameConsumer(AsyncWebsocketConsumer):
         game = GameSession.objects.get(id=game_id)
         user = User.objects.get(id=user_id)
         game.player2 = user
-        game.status = 'racing'
+        # Use valid status from STATUS_CHOICES
+        game.status = 'ready'
         game.save()
     
     @database_sync_to_async

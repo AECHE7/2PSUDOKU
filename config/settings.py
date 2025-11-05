@@ -191,60 +191,78 @@ LOGGING = {
     },
 }
 
-# Channels / Redis
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
-print(f"Using Redis URL: {REDIS_URL}")  # Debug log
+"""
+Channels / Redis configuration
 
-# Cache configuration using Redis
-# Use django-redis in production for better performance and features
-# Falls back to in-memory cache in development if django-redis is not available
-try:
-    import django_redis  # type: ignore
+Goal:
+- Use Redis when REDIS_URL is provided and reachable
+- Otherwise, fall back gracefully to in-memory channels and dummy cache
+  (sufficient for a single-instance deployment like a single Render web service)
+"""
+
+REDIS_URL = os.environ.get('REDIS_URL')
+print(f"Using Redis URL: {REDIS_URL or 'None (will use in-memory)'}")  # Debug log
+
+if REDIS_URL:
+    # Cache configuration using Redis
+    try:
+        import django_redis  # type: ignore
+        CACHES = {
+            'default': {
+                'BACKEND': 'django_redis.cache.RedisCache',
+                'LOCATION': REDIS_URL,
+                'OPTIONS': {
+                    'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                    'SOCKET_CONNECT_TIMEOUT': 5,
+                    'SOCKET_TIMEOUT': 5,
+                    'RETRY_ON_TIMEOUT': True,
+                    'MAX_CONNECTIONS': 50,
+                },
+                'KEY_PREFIX': '2psudoku',
+                'TIMEOUT': 300,  # 5 minutes default
+            }
+        }
+        print("✅ Using django-redis cache backend")
+    except ImportError:
+        print("⚠️ django-redis not found, using dummy cache")
+        CACHES = {
+            'default': {
+                'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
+            }
+        }
+
+    # Channels via Redis
+    import urllib.parse
+    redis_url = urllib.parse.urlparse(REDIS_URL)
+    try:
+        CHANNEL_LAYERS = {
+            'default': {
+                'BACKEND': 'channels_redis.core.RedisChannelLayer',
+                'CONFIG': {
+                    'hosts': [{
+                        'address': (redis_url.hostname, redis_url.port),
+                        'password': redis_url.password,
+                    }] if redis_url.password else [REDIS_URL],
+                },
+            },
+        }
+        print("✅ Redis channel layer configured")
+    except Exception as e:
+        print(f"⚠️ Redis channel layer config error: {e} — falling back to in-memory")
+        CHANNEL_LAYERS = {
+            'default': {
+                'BACKEND': 'channels.layers.InMemoryChannelLayer',
+            },
+        }
+else:
+    # No REDIS_URL provided — fall back safely for single-instance deployments
+    print("⚠️ No REDIS_URL set — using in-memory cache and channels. This is fine for a single instance.")
     CACHES = {
         'default': {
-            'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': REDIS_URL,
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-                'SOCKET_CONNECT_TIMEOUT': 5,
-                'SOCKET_TIMEOUT': 5,
-                'RETRY_ON_TIMEOUT': True,
-                'MAX_CONNECTIONS': 50,
-            },
-            'KEY_PREFIX': '2psudoku',
-            'TIMEOUT': 300,  # 5 minutes default
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': '2psudoku-locmem-cache'
         }
     }
-    print("✅ Using django-redis cache backend")
-except ImportError:
-    # Fallback to dummy cache in development if django-redis not installed
-    print("⚠️ django-redis not found, using dummy cache (development only)")
-    CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
-        }
-    }
-
-# Parse Redis URL for Channels
-import urllib.parse
-redis_url = urllib.parse.urlparse(REDIS_URL)
-
-try:
-    CHANNEL_LAYERS = {
-        'default': {
-            'BACKEND': 'channels_redis.core.RedisChannelLayer',
-            'CONFIG': {
-                'hosts': [{
-                    'address': (redis_url.hostname, redis_url.port),
-                    'password': redis_url.password,
-                }] if redis_url.password else [REDIS_URL],
-            },
-        },
-    }
-    print("Redis channel layers configured successfully")
-except Exception as e:
-    print(f"Redis configuration error: {e}")
-    # Fallback to in-memory channel layer for debugging
     CHANNEL_LAYERS = {
         'default': {
             'BACKEND': 'channels.layers.InMemoryChannelLayer',

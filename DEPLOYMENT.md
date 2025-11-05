@@ -81,7 +81,12 @@ DJANGO_SECRET_KEY=your-super-secret-50-character-key-here-random
 DEBUG=0
 ALLOWED_HOSTS=your-app-name.onrender.com
 DATABASE_URL=postgresql://user:pass@host:5432/dbname
-REDIS_URL=redis://host:port/db
+# Optional: Use Redis for channels/cache (recommended for multi-instance)
+# If omitted, app will fall back to in-memory channels/cache suitable for a single instance
+# REDIS_URL=redis://host:port/db
+
+# Optional: Force Redis requirement (set to 1 to fail startup if REDIS_URL is missing)
+# REQUIRE_REDIS=1
 ```
 
 **🔑 Generate Secret Key:**
@@ -215,7 +220,7 @@ python manage.py collectstatic --noinput
 
 ### 🚨 WebSocket Connection Failed
 1. Check that Daphne is running (not Gunicorn)
-2. Verify Redis is accessible
+2. If running multiple instances, ensure `REDIS_URL` is set and reachable; otherwise run a single instance or set up Redis
 3. Check ASGI configuration in `config/asgi.py`
 
 ## Debugging Steps

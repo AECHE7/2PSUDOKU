@@ -14,11 +14,15 @@ def validate_production_env():
     
     print("🔍 Validating production environment variables...")
     
+    # Redis can be optional for single-instance deployments; require it only when explicitly requested
+    require_redis = os.environ.get('REQUIRE_REDIS', '0') == '1'
+
     required_vars = {
         'DJANGO_SECRET_KEY': 'Django secret key for cryptographic signing',
         'DATABASE_URL': 'PostgreSQL database connection string',
-        'REDIS_URL': 'Redis connection string for channels and caching',
     }
+    if require_redis:
+        required_vars['REDIS_URL'] = 'Redis connection string for channels and caching'
     
     missing_vars = []
     for var, description in required_vars.items():
@@ -42,6 +46,10 @@ def validate_production_env():
         print("   Generate a new secret key and set it in environment variables.")
         sys.exit(1)
     
+    # Informational note when Redis is not required and not provided
+    if not require_redis and not os.environ.get('REDIS_URL'):
+        print("ℹ️ No REDIS_URL set — app will use in-memory channels/cache (okay for single-instance)")
+
     print("✅ All required environment variables are configured")
 
 

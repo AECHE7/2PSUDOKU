@@ -56,7 +56,8 @@ class GameResult(models.Model):
     
     game = models.OneToOneField(GameSession, on_delete=models.CASCADE, related_name='result')
     winner = models.ForeignKey(User, related_name='won_results', on_delete=models.CASCADE)
-    loser = models.ForeignKey(User, related_name='lost_results', on_delete=models.CASCADE)
+    # Loser can be null in solo/practice sessions
+    loser = models.ForeignKey(User, related_name='lost_results', on_delete=models.CASCADE, null=True, blank=True)
     winner_time = models.DurationField()  # Time taken by winner to solve
     loser_time = models.DurationField(null=True, blank=True)  # Time taken by loser (if they finished)
     difficulty = models.CharField(max_length=10, choices=GameSession.DIFFICULTY_CHOICES)
