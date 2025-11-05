@@ -434,9 +434,14 @@
                 {% for cell in row %}
                   <td class="sudoku-cell" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
                     {% if cell != 0 %}
-                      <input type="number" min="1" max="9" class="cell-input prefilled" value="{{ cell }}" disabled readonly>
+                      <input type="number" min="1" max="9" class="cell-input prefilled" value="{{ cell }}" disabled readonly 
+                             aria-label="Prefilled cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}" 
+                             tabindex="-1">
                     {% else %}
-                      <input type="number" min="1" max="9" class="cell-input" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
+                      <input type="number" min="1" max="9" class="cell-input" 
+                             data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}"
+                             aria-label="Empty cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}"
+                             placeholder="" autocomplete="off">
                     {% endif %}
                   </td>
                 {% endfor %}
@@ -461,9 +466,13 @@
               {% for cell in row %}
                 <td class="sudoku-cell">
                   {% if cell != 0 %}
-                    <input type="number" class="cell-input prefilled opponent-cell" value="{{ cell }}" disabled readonly>
+                    <input type="number" class="cell-input prefilled opponent-cell" value="{{ cell }}" disabled readonly
+                           aria-label="Opponent prefilled cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}"
+                           tabindex="-1">
                   {% else %}
-                    <input type="number" class="cell-input opponent-cell" disabled readonly>
+                    <input type="number" class="cell-input opponent-cell" disabled readonly
+                           aria-label="Opponent empty cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}"
+                           tabindex="-1">
                   {% endif %}
                 </td>
               {% endfor %}

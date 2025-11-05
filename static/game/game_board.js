@@ -156,15 +156,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
   
-  ws.onclose = () => {
-    console.log('WebSocket closed');
+  ws.onclose = (event) => {
+    console.log('WebSocket closed:', event.code, event.reason);
     isConnected = false;
-    addMessage('Disconnected from server', 'error');
+    
+    if (event.code === 1000) {
+      addMessage('Connection closed normally', 'info');
+    } else {
+      addMessage(`Disconnected from server (Code: ${event.code})`, 'error');
+      
+      // Attempt to reconnect after a delay if not a normal closure
+      if (event.code !== 1000 && !gameFinished) {
+        setTimeout(() => {
+          addMessage('Attempting to reconnect...', 'info');
+          location.reload(); // Simple reconnection strategy
+        }, 3000);
+      }
+    }
   };
   
   ws.onerror = (error) => {
     console.error('WebSocket error:', error);
-    addMessage('WebSocket error', 'error');
+    addMessage('Connection error - please check your internet connection', 'error');
   };
   
   // Enhanced Cell Input Handling
@@ -524,16 +537,31 @@ document.addEventListener('DOMContentLoaded', () => {
     // Show modal
     try {
       if (typeof bootstrap !== 'undefined') {
-        const bootstrapModal = new bootstrap.Modal(modal);
+        const bootstrapModal = new bootstrap.Modal(modal, {
+          backdrop: 'static',
+          keyboard: false
+        });
         bootstrapModal.show();
         console.log('Bootstrap modal shown');
       } else {
         console.error('Bootstrap not loaded!');
-        // Fallback: show modal manually
+        // Fallback: show modal manually with backdrop
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.id = 'modal-backdrop';
+        document.body.appendChild(backdrop);
+        
         modal.style.display = 'block';
         modal.classList.add('show');
         modal.setAttribute('aria-hidden', 'false');
         document.body.classList.add('modal-open');
+        
+        // Add backdrop click handling
+        backdrop.addEventListener('click', (e) => {
+          if (e.target === backdrop) {
+            // Don't close modal on backdrop click (game finished state)
+          }
+        });
       }
     } catch (error) {
       console.error('Error showing modal:', error);
@@ -561,9 +589,21 @@ document.addEventListener('DOMContentLoaded', () => {
     addMessage(`New game created! Redirecting to game ${data.game_code}...`, 'success');
     
     // Close the modal
-    const modal = bootstrap.Modal.getInstance(document.getElementById('winner-modal'));
-    if (modal) {
-      modal.hide();
+    try {
+      const modalElement = document.getElementById('winner-modal');
+      const modal = bootstrap.Modal.getInstance(modalElement);
+      if (modal) {
+        modal.hide();
+      } else {
+        // Fallback manual close
+        modalElement.style.display = 'none';
+        modalElement.classList.remove('show');
+        document.body.classList.remove('modal-open');
+        const backdrop = document.getElementById('modal-backdrop');
+        if (backdrop) backdrop.remove();
+      }
+    } catch (error) {
+      console.error('Error closing modal:', error);
     }
     
     // Redirect to new game after a short delay

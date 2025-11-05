@@ -19,10 +19,20 @@ if not DEBUG and os.environ.get('RENDER'):
     DEBUG = True
     print("DEBUG temporarily enabled for Render deployment debugging")
 
-ALLOWED_HOSTS = ['*'] if DEBUG else os.environ.get('ALLOWED_HOSTS', 'localhost').split(',')
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    'twopsudoku.onrender.com',
+    '.onrender.com',  # Allow any Render subdomain
+    '*' if DEBUG else None  # Only allow all hosts in DEBUG mode
+]
+ALLOWED_HOSTS = [host for host in ALLOWED_HOSTS if host is not None]
 
 # CSRF trusted origins for Render deployment
 CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
     'https://twopsudoku.onrender.com',
     'https://*.onrender.com',  # Allow any Render subdomain
 ]
@@ -61,6 +71,22 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# Content Security Policy settings to allow Bootstrap CDN
+CSP_DEFAULT_SRC = ("'self'",)
+CSP_STYLE_SRC = (
+    "'self'", 
+    "'unsafe-inline'",  # Allow inline styles
+    "https://cdn.jsdelivr.net",  # Bootstrap CSS
+)
+CSP_SCRIPT_SRC = (
+    "'self'", 
+    "'unsafe-inline'",  # Allow inline scripts
+    "https://cdn.jsdelivr.net",  # Bootstrap JS
+)
+CSP_FONT_SRC = ("'self'", "https://cdn.jsdelivr.net")
+CSP_IMG_SRC = ("'self'", "data:", "https:")
+CSP_CONNECT_SRC = ("'self'", "ws:", "wss:")  # Allow WebSocket connections
 
 ROOT_URLCONF = 'config.urls'
 
