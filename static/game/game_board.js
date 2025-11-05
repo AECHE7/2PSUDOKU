@@ -16,16 +16,60 @@ document.addEventListener('DOMContentLoaded', () => {
   const messageDiv = document.getElementById('messages');
   let cellInputs = document.querySelectorAll('.cell-input');
 
+  // Helper function to safely send WebSocket messages
+  let messageQueue = [];
+  let isConnected = false;
+
+  function safeSend(message) {
+    if (ws.readyState === WebSocket.OPEN && isConnected) {
+      try {
+        ws.send(JSON.stringify(message));
+        return true;
+      } catch (error) {
+        console.error('Error sending WebSocket message:', error);
+        return false;
+      }
+    } else if (ws.readyState === WebSocket.CONNECTING) {
+      console.log('WebSocket still connecting, queuing message');
+      messageQueue.push(message);
+      return false;
+    } else {
+      console.log('WebSocket is not connected, cannot send message');
+      addMessage('Connection lost. Please refresh the page.', 'error');
+      return false;
+    }
+  }
+
+  function processMessageQueue() {
+    while (messageQueue.length > 0 && ws.readyState === WebSocket.OPEN) {
+      const message = messageQueue.shift();
+      try {
+        ws.send(JSON.stringify(message));
+      } catch (error) {
+        console.error('Error sending queued message:', error);
+        break;
+      }
+    }
+  }
   
   ws.onopen = () => {
     console.log('WebSocket connected');
+    isConnected = true;
     addMessage('Connected to game server');
     
+    // Process any queued messages
+    processMessageQueue();
+    
     // Send join message
-    ws.send(JSON.stringify({
+    safeSend({
       type: 'join_game',
       playerId: playerId,
-    }));
+    });
+
+    // Request current board state after connection is established
+    setTimeout(() => {
+      safeSend({ type: 'get_board' });
+    }, 500);
   };
   
   ws.onmessage = (event) => {
@@ -66,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   ws.onclose = () => {
     console.log('WebSocket closed');
+    isConnected = false;
     addMessage('Disconnected from server', 'error');
   };
   
@@ -88,12 +133,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const value = parseInt(e.target.value);
     
     if (value && value >= 1 && value <= 9) {
-      ws.send(JSON.stringify({
+      safeSend({
         type: 'move',
         row: row,
         col: col,
         value: value,
-      }));
+      });
     } else if (e.target.value === '') {
       // Allow clearing, but don't send empty move
       return;
@@ -104,11 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
       showFinishButton();
     }
   });
-  
-  // Request current board state
-  setTimeout(() => {
-    ws.send(JSON.stringify({ type: 'get_board' }));
-  }, 500);
 
   // Ready/start UI
   const readyBtn = document.getElementById('ready-btn');
@@ -116,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (readyBtn) {
     readyBtn.style.display = 'inline-block';
     readyBtn.addEventListener('click', () => {
-      ws.send(JSON.stringify({ type: 'ready' }));
+      safeSend({ type: 'ready' });
       readyBtn.disabled = true;
       readyBtn.textContent = 'Waiting for opponent...';
     });
@@ -125,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Optionally allow host to force start
     startRaceBtn.style.display = 'inline-block';
     startRaceBtn.addEventListener('click', () => {
-      ws.send(JSON.stringify({ type: 'ready' }));
+      safeSend({ type: 'ready' });
     });
   }
 
@@ -135,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
     finishBtn.addEventListener('click', () => {
       // Check if puzzle is complete before submitting
       if (isLocalBoardComplete()) {
-        ws.send(JSON.stringify({ type: 'complete' }));
+        safeSend({ type: 'complete' });
         finishBtn.disabled = true;
         finishBtn.textContent = 'Submitted!';
         addMessage('Solution submitted!');
