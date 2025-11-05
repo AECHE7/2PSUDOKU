@@ -64,17 +64,18 @@ class GameConsumer(AsyncWebsocketConsumer):
     
     async def handle_join_game(self, data):
         """Handle player joining a game."""
-        game = await self.get_or_create_game()
-        
-        # Get player info safely with async calls
-        game_info = await self.get_game_player_info(game)
-        
-        if not game_info['player2_id'] and game_info['player1_id'] != self.user.id:
+        # Create or get the game and operate using its id to keep DB work inside sync wrappers
+        game_id = await self.get_or_create_game()
+
+        # Get player info safely with async calls (by id)
+        game_info = await self.get_game_player_info(game_id)
+
+        if not game_info['player2_id'] and game_info['player1_id'] != getattr(self.user, 'id', None):
             # Add second player
-            await self.add_player2(game, self.user)
-            await self.start_game(game)
+            await self.add_player2(game_id, self.user.id)
+            await self.start_game(game_id)
             # Refresh game info after adding player
-            game_info = await self.get_game_player_info(game)
+            game_info = await self.get_game_player_info(game_id)
         elif game_info['player2_id'] and (game_info['player1_id'] == self.user.id or game_info['player2_id'] == self.user.id):
             # Rejoin existing game
             pass
@@ -82,8 +83,8 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({'error': 'Cannot join this game'}))
             return
         
-        # Send game state to client
-        board_state = await self.get_board_state(game)
+        # Send game state to client (fetch board via id)
+        board_state = await self.get_board_state(game_id)
         await self.send(text_data=json.dumps({
             'type': 'game_state',
             'board': board_state,
@@ -101,36 +102,36 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({'error': 'Invalid move data'}))
             return
         
-        game = await self.get_game()
-        if not game:
+        # Resolve game id first
+        game_id = await self.get_game_id()
+        if not game_id:
             await self.send(text_data=json.dumps({'error': 'Game not found'}))
             return
-        
+
         # Check if it's this player's turn (async-safe)
-        current_turn_id = await self.get_current_turn_id(game)
-        if current_turn_id != self.user.id:
+        current_turn_id = await self.get_current_turn_id(game_id)
+        if current_turn_id != getattr(self.user, 'id', None):
             await self.send(text_data=json.dumps({'error': 'Not your turn'}))
             return
         
-        # Validate move server-side
-        current_board = game.board.get('current', [])
+        # Validate move server-side (fetch board state via id)
+        current_board = await self.get_board_state(game_id)
         puzzle = SudokuPuzzle.from_dict({'board': current_board})
         if not puzzle.is_valid_placement(row, col, value):
             await self.send(text_data=json.dumps({'error': 'Invalid move'}))
             return
         
         # Record the move
-        move = await self.create_move(game, self.user, row, col, value)
-        
+        move = await self.create_move(game_id, self.user.id, row, col, value)
+
         # Update board state
-        new_board = [list(row) for row in game.board.get('current', [])]
+        new_board = [list(r) for r in current_board]
         new_board[row][col] = value
-        game.board['current'] = new_board
-        await self.update_game_board(game, new_board)
+        await self.update_game_board(game_id, new_board)
         
         # Switch current turn (async-safe)
-        next_player_info = await self.switch_turn(game)
-        await self.update_game_turn(game, next_player_info['next_player_id'])
+        next_player_info = await self.switch_turn(game_id)
+        await self.update_game_turn(game_id, next_player_info['next_player_id'])
         
         # Broadcast the move to all players
         await self.channel_layer.group_send(
@@ -193,6 +194,7 @@ class GameConsumer(AsyncWebsocketConsumer):
     def get_or_create_game(self):
         """Get or create a game session."""
         code = self.code
+        # Work with primitives inside sync function to avoid passing model instances
         game, created = GameSession.objects.get_or_create(
             code=code,
             defaults={
@@ -209,82 +211,105 @@ class GameConsumer(AsyncWebsocketConsumer):
             }
             game.current_turn = game.player1
             game.save()
-        return game
+        return game.id
     
     @database_sync_to_async
     def get_game(self):
         """Get the current game."""
         try:
-            return GameSession.objects.get(code=self.code)
+            g = GameSession.objects.get(code=self.code)
+            return g.id
+        except GameSession.DoesNotExist:
+            return None
+
+    @database_sync_to_async
+    def get_game_id(self):
+        """Return the game id for current code (or None)."""
+        try:
+            return GameSession.objects.get(code=self.code).id
         except GameSession.DoesNotExist:
             return None
     
     @database_sync_to_async
-    def add_player2(self, game, user):
+    def add_player2(self, game_id, user_id):
         """Add second player to game and mark as in progress."""
+        game = GameSession.objects.get(id=game_id)
+        user = User.objects.get(id=user_id)
         game.player2 = user
         game.status = 'in_progress'
         game.save()
     
     @database_sync_to_async
-    def start_game(self, game):
+    def start_game(self, game_id):
         """Mark game as started."""
+        game = GameSession.objects.get(id=game_id)
         game.status = 'in_progress'
         game.save()
     
     @database_sync_to_async
-    def create_move(self, game, player, row, col, value):
+    def create_move(self, game_id, player_id, row, col, value):
         """Record a move in the database."""
+        game = GameSession.objects.get(id=game_id)
+        player = User.objects.get(id=player_id)
         move = Move(game=game, player=player, row=row, col=col, value=value)
         move.save()
-        return move
+        return move.id
     
     @database_sync_to_async
-    def update_game_board(self, game, new_board):
+    def update_game_board(self, game_id, new_board):
         """Update the game board state."""
+        game = GameSession.objects.get(id=game_id)
         game.board['current'] = [list(row) for row in new_board]
         game.save()
     
     @database_sync_to_async
-    def update_game_turn(self, game, next_player_id):
+    def update_game_turn(self, game_id, next_player_id):
         """Update whose turn it is."""
-        from django.contrib.auth.models import User
         next_player = User.objects.get(id=next_player_id)
+        game = GameSession.objects.get(id=game_id)
         game.current_turn = next_player
         game.save()
     
     @database_sync_to_async
-    def get_board_state(self, game):
+    def get_board_state(self, game_id):
         """Get the current board state."""
+        game = GameSession.objects.get(id=game_id)
         board = game.board.get('current', [])
         # Ensure it's a list of lists, not a reference issue
         return [list(row) if isinstance(row, (list, tuple)) else row for row in board]
     
     @database_sync_to_async
-    def get_game_player_info(self, game):
-        """Get player information safely for async context."""
+    def get_game_player_info(self, game_id):
+        """Get player information safely for async context by game id."""
+        game = GameSession.objects.get(id=game_id)
         return {
             'player1_id': game.player1.id if game.player1 else None,
             'player1_username': game.player1.username if game.player1 else None,
-            'player2_id': game.player2.id if game.player2 else None, 
+            'player2_id': game.player2.id if game.player2 else None,
             'player2_username': game.player2.username if game.player2 else None,
         }
     
     @database_sync_to_async
-    def get_current_turn_id(self, game):
-        """Get current turn player ID safely."""
+    def get_current_turn_id(self, game_id):
+        """Get current turn player ID safely by game id."""
+        game = GameSession.objects.get(id=game_id)
         return game.current_turn.id if game.current_turn else None
     
     @database_sync_to_async
-    def switch_turn(self, game):
-        """Switch to next player and return info."""
-        if game.current_turn.id == game.player1.id:
-            next_player = game.player2
+    def switch_turn(self, game_id):
+        """Compute next player (do not persist) and return info by game id."""
+        game = GameSession.objects.get(id=game_id)
+        if not game.player2:
+            # No second player yet; keep same turn
+            next_player = game.current_turn
         else:
-            next_player = game.player1
-            
+            if game.current_turn and game.player1 and game.current_turn.id == game.player1.id:
+                next_player = game.player2
+            else:
+                next_player = game.player1
+
         return {
-            'next_player_id': next_player.id,
-            'next_player_username': next_player.username,
+            'next_player_id': next_player.id if next_player else None,
+            'next_player_username': next_player.username if next_player else None,
         }
 
