@@ -459,9 +459,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // After each input, check if puzzle is complete and auto-submit
     const isComplete = isLocalBoardComplete();
     const isValid = isLocalBoardValid();
-    console.log('Board check:', { isComplete, isValid });
-    
-    if (isComplete && isValid) {
+    console.log('Board check:', { isComplete, isValid, gameFinished });
+
+    if (isComplete && isValid && !gameFinished) {
       console.log('Auto-submitting solution...');
       autoSubmitSolution();
     }
@@ -595,78 +595,75 @@ document.addEventListener('DOMContentLoaded', () => {
   function startTimers(startTime) {
     console.log('🔥 startTimers() CALLED!');
     console.log('📅 Start time received:', startTime);
-    
+
     Logger.info(`Starting timers from: ${startTime}`);
     raceStartTime = startTime;
-    
+
     // Function to check and start timer
     const initTimer = () => {
       console.log('🔍 Attempting to find timer elements...');
-      
-      // Use cached elements if available
-      if (!cachedTimerElements) {
-        const timer1 = document.getElementById('player1-timer');
-        const timer2 = document.getElementById('player2-timer');
-        const elapsedTimer = document.getElementById('elapsed-time');
-        
-        console.log('🔍 player1-timer:', timer1);
-        console.log('🔍 player2-timer:', timer2);
-        console.log('🔍 elapsed-time:', elapsedTimer);
-        
-        if (!timer1 || !timer2 || !elapsedTimer) {
-          console.warn('⚠️ Timer elements not found yet, retrying...');
-          return false;
-        }
-        
-        // Cache the elements for faster access
-        cachedTimerElements = { timer1, timer2, elapsedTimer };
-        console.log('✅ Timer elements cached!');
-      } else {
-        console.log('✅ Using cached timer elements!');
+
+      // Always get fresh references to ensure DOM is ready
+      const timer1 = document.getElementById('player1-timer');
+      const timer2 = document.getElementById('player2-timer');
+      const elapsedTimer = document.getElementById('elapsed-time');
+
+      console.log('🔍 player1-timer:', timer1);
+      console.log('🔍 player2-timer:', timer2);
+      console.log('🔍 elapsed-time:', elapsedTimer);
+
+      if (!timer1 || !timer2 || !elapsedTimer) {
+        console.warn('⚠️ Timer elements not found yet, retrying...');
+        return false;
       }
-      
+
+      // Cache the elements for faster access
+      cachedTimerElements = { timer1, timer2, elapsedTimer };
+      console.log('✅ Timer elements cached!');
+
       // Clear any existing interval
       if (timerInterval) {
         clearInterval(timerInterval);
       }
-      
+
       timerInterval = setInterval(() => {
         const now = new Date();
         const elapsed = Math.max(0, Math.floor((now - raceStartTime) / 1000));
         const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
         const ss = String(elapsed % 60).padStart(2, '0');
         const timeString = `${mm}:${ss}`;
-        
+
         // Update ALL three timer displays using cached elements
         cachedTimerElements.timer1.textContent = timeString;
         cachedTimerElements.timer2.textContent = timeString;
         cachedTimerElements.elapsedTimer.textContent = timeString;
       }, 500);
-      
+
       console.log('✅ Timer interval started successfully!');
       return true;
     };
-    
+
     // Try immediately first
     if (initTimer()) {
       return;
     }
-    
-    // Retry mechanism
-    const retryDelays = [100, 250, 500, 1000];
+
+    // Retry mechanism with exponential backoff
+    const maxRetries = 10;
     let retryIndex = 0;
-    
+
     const retryTimer = setInterval(() => {
-      console.log(`🔄 Retry ${retryIndex + 1}/${retryDelays.length}`);
-      if (initTimer() || retryIndex >= retryDelays.length) {
+      console.log(`🔄 Retry ${retryIndex + 1}/${maxRetries}`);
+      if (initTimer() || retryIndex >= maxRetries) {
         clearInterval(retryTimer);
-        if (retryIndex >= retryDelays.length) {
-          console.error('❌ Failed to start timer');
+        if (retryIndex >= maxRetries) {
+          console.error('❌ Failed to start timer after maximum retries');
+          addMessage('Timer failed to start. Please refresh the page.', 'error');
         }
       } else {
         retryIndex++;
       }
-    }, retryDelays[retryIndex] || 1000);
+    }, 200); // Check every 200ms
   }
 
   function stopTimers() {
@@ -876,68 +873,64 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('═══════════════════════════════════════');
     console.log('Data:', data);
     console.log('Is Winner:', isWinner);
-    
+
     const modal = document.getElementById('winner-modal');
     const winnerContent = document.getElementById('winner-content');
     const gameStats = document.getElementById('game-stats');
-    
+
     console.log('🔍 DOM Elements:');
     console.log('  - modal:', modal);
     console.log('  - winnerContent:', winnerContent);
     console.log('  - gameStats:', gameStats);
-    
+
     if (!modal) {
       console.error('❌ Winner modal element not found!');
       alert(`Game Over! ${isWinner ? 'You won!' : data.winner_username + ' won!'} Time: ${data.winner_time}`);
       return;
     }
-    
-    if (!winnerContent) {
-      console.error('❌ Winner content element not found!');
-    }
-    
-    if (!gameStats) {
-      console.error('❌ Game stats element not found!');
-    }
-    
+
     // Populate winner content
     console.log('📝 Populating winner content...');
-    if (isWinner) {
-      winnerContent.innerHTML = `
-        <h4 class="text-success">🏆 Congratulations!</h4>
-        <p class="lead">You won the race!</p>
-      `;
-    } else {
-      winnerContent.innerHTML = `
-        <h4 class="text-info">Good Game!</h4>
-        <p class="lead">${data.winner_username} won this round</p>
-      `;
+    if (winnerContent) {
+      if (isWinner) {
+        winnerContent.innerHTML = `
+          <h4 class="text-success">🏆 Congratulations!</h4>
+          <p class="lead">You won the race!</p>
+        `;
+      } else {
+        winnerContent.innerHTML = `
+          <h4 class="text-info">Good Game!</h4>
+          <p class="lead">${data.winner_username} won this round</p>
+        `;
+      }
+      console.log('✅ Winner content populated');
     }
-    console.log('✅ Winner content populated');
-    
+
     // Populate game stats
     console.log('📊 Populating game stats...');
-    const difficulty = gameDataEl.dataset.difficulty;
-    gameStats.innerHTML = `
-      <div class="row">
-        <div class="col-6"><strong>Winner:</strong></div>
-        <div class="col-6">${data.winner_username}</div>
-      </div>
-      <div class="row">
-        <div class="col-6"><strong>Time:</strong></div>
-        <div class="col-6">${formatTime(data.winner_time)}</div>
-      </div>
-      <div class="row">
-        <div class="col-6"><strong>Difficulty:</strong></div>
-        <div class="col-6">${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</div>
-      </div>
-    `;
-    console.log('✅ Game stats populated');
-    
+    if (gameStats) {
+      const difficulty = gameDataEl.dataset.difficulty;
+      gameStats.innerHTML = `
+        <div class="row">
+          <div class="col-6"><strong>Winner:</strong></div>
+          <div class="col-6">${data.winner_username}</div>
+        </div>
+        <div class="row">
+          <div class="col-6"><strong>Time:</strong></div>
+          <div class="col-6">${formatTime(data.winner_time)}</div>
+        </div>
+        <div class="row">
+          <div class="col-6"><strong>Difficulty:</strong></div>
+          <div class="col-6">${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</div>
+        </div>
+      `;
+      console.log('✅ Game stats populated');
+    }
+
     // Show modal
     console.log('🎭 Attempting to show modal...');
     try {
-      if (typeof bootstrap !== 'undefined') {
+      if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
         console.log('✅ Bootstrap found, creating modal instance...');
         const bootstrapModal = new bootstrap.Modal(modal, {
           backdrop: 'static',
@@ -952,12 +945,12 @@ document.addEventListener('DOMContentLoaded', () => {
         backdrop.className = 'modal-backdrop fade show';
         backdrop.id = 'modal-backdrop';
         document.body.appendChild(backdrop);
-        
+
         modal.style.display = 'block';
         modal.classList.add('show');
         modal.setAttribute('aria-hidden', 'false');
         document.body.classList.add('modal-open');
-        
+
         // Add backdrop click handling
         backdrop.addEventListener('click', (e) => {
           if (e.target === backdrop) {
@@ -966,17 +959,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
     } catch (error) {
-  console.error('❌ Error showing modal:', error);
-  console.error('Stack trace:', error.stack);
+      console.error('❌ Error showing modal:', error);
+      console.error('Stack trace:', error.stack);
       // Simple fallback
-  const message = `Game Over! ${isWinner ? '🏆 YOU WON!' : data.winner_username + ' won!'} Time: ${data.winner_time}`;
-  alert(message);
-    
-  console.log('═══════════════════════════════════════');
-  console.log('✅ showWinnerModal() completed');
-  console.log('═══════════════════════════════════════');
-  console.log('');
+      const message = `Game Over! ${isWinner ? '🏆 YOU WON!' : data.winner_username + ' won!'} Time: ${data.winner_time}`;
+      alert(message);
     }
+
+    console.log('═══════════════════════════════════════');
+    console.log('✅ showWinnerModal() completed');
+    console.log('═══════════════════════════════════════');
+    console.log('');
   }
 
   function formatTime(timeString) {
@@ -995,26 +988,29 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function handleNewGameCreated(data) {
+    console.log('🎮 New game created:', data);
     addMessage(`New game created! Redirecting to game ${data.game_code}...`, 'success');
-    
-    // Close the modal
+
+    // Close the modal if open
     try {
       const modalElement = document.getElementById('winner-modal');
-      const modal = bootstrap.Modal.getInstance(modalElement);
-      if (modal) {
-        modal.hide();
-      } else {
-        // Fallback manual close
-        modalElement.style.display = 'none';
-        modalElement.classList.remove('show');
-        document.body.classList.remove('modal-open');
-        const backdrop = document.getElementById('modal-backdrop');
-        if (backdrop) backdrop.remove();
+      if (modalElement) {
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+          modal.hide();
+        } else {
+          // Fallback manual close
+          modalElement.style.display = 'none';
+          modalElement.classList.remove('show');
+          document.body.classList.remove('modal-open');
+          const backdrop = document.getElementById('modal-backdrop');
+          if (backdrop) backdrop.remove();
+        }
       }
     } catch (error) {
       console.error('Error closing modal:', error);
     }
-    
+
     // Redirect to new game after a short delay
     setTimeout(() => {
       window.location.href = `/game/${data.game_code}/`;
