@@ -1,6 +1,7 @@
 import json
 import uuid
 import asyncio
+from datetime import timedelta
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
@@ -659,9 +660,9 @@ class GameConsumer(AsyncWebsocketConsumer):
         else:
             loser = game.player1
 
-        # Idempotent: if a result already exists, reuse it
-        if hasattr(game, 'result'):
-            existing = game.result
+        # Idempotent: if a result already exists, reuse it (avoid attribute access that raises DoesNotExist)
+        existing = GameResult.objects.filter(game=game).select_related('winner').first()
+        if existing:
             total_sec = int(existing.winner_time.total_seconds()) if existing.winner_time else 0
             wm, ws = divmod(total_sec, 60)
             return {
@@ -688,7 +689,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             game=game,
             winner=winner,
             loser=loser,
-            winner_time=winner_time or timezone.timedelta(0),
+            winner_time=winner_time or timedelta(0),
             loser_time=loser_time,
             difficulty=game.difficulty,
         )
@@ -856,7 +857,7 @@ class GameConsumer(AsyncWebsocketConsumer):
                     game=game,
                     winner=remaining_player,
                     loser=leaving_player,
-                    winner_time=timezone.timedelta(0),  # Instant win
+                    winner_time=timedelta(0),  # Instant win
                     loser_time=None,
                     difficulty=game.difficulty,
                     result_type='forfeit'
