@@ -115,10 +115,52 @@ Visit `http://127.0.0.1:8000/` in your browser.
 
 ## Testing
 
+### Unit Tests
+
 Run unit tests:
 
 ```bash
 python manage.py test game.tests
+```
+
+### Game Flow Testing
+
+Test the complete game flow (creation, joining, racing, validation):
+
+```bash
+# Basic test with cleanup (default: easy difficulty)
+python manage.py test_game_flow
+
+# Test with medium difficulty
+python manage.py test_game_flow --difficulty medium
+
+# Test with hard difficulty
+python manage.py test_game_flow --difficulty hard
+
+# Create a test game and keep it in database for manual testing
+python manage.py test_game_flow --keep-game
+
+# The command will output the game URL and test user credentials
+```
+
+The `test_game_flow` command:
+- Creates test users (`testplayer1` and `testplayer2`)
+- Generates a game with specified difficulty
+- Simulates player joining and race start
+- Validates board completion logic
+- Shows puzzle statistics
+- Optionally keeps the game for manual testing
+
+### Management Commands
+
+Available custom management commands:
+
+```bash
+# Initialize database with test data
+python manage.py init_database
+
+# Test complete game flow
+python manage.py test_game_flow [--difficulty easy|medium|hard] [--keep-game]
 ```
 
 ## Admin Panel
