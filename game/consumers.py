@@ -221,6 +221,10 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def handle_join_game(self, message: JoinGameMessage):
         """Handle player joining game."""
         try:
+            if not self.user or not self.user.is_authenticated:
+                await self.send_error("Authentication required")
+                return
+
             # Add player to game using sync_to_async
             success = await self.add_player_to_game()
             if not success:
@@ -230,11 +234,12 @@ class GameConsumer(AsyncWebsocketConsumer):
             # Refresh game session
             self.game_session = await self.get_game_session()
 
+            # Safe async check for players
+            game_data = await self.get_game_players_async()
+
             # Check if we need to start countdown
-            if (self.game_session and
-                self.game_session.status == 'ready' and
-                self.game_session.player1 and
-                self.game_session.player2):
+            if (game_data['status'] == 'ready' and
+                game_data['player1_id'] and game_data['player2_id']):
                 # Start countdown for both players
                 await self.start_countdown()
 
@@ -267,15 +272,15 @@ class GameConsumer(AsyncWebsocketConsumer):
             col = message.data['col']
             value = message.data['value']
 
-            # Validate move
-            if not self.game_state_manager.validate_move(
+            # Validate move (async-safe)
+            if not await self.game_state_manager.validate_move_async(
                 self.user.id, row, col, value
             ):
                 await self.send_error("Invalid move")
                 return
 
             # Record move
-            success = self.game_state_manager.record_move(
+            success = await self.game_state_manager.record_move_async(
                 self.user.id, row, col, value
             )
             if not success:
@@ -454,13 +459,23 @@ class GameConsumer(AsyncWebsocketConsumer):
         event_type = event['event_type']
 
         if event_type == 'started':
-            # Send race started message
-            race_started_msg = {
-                'type': MessageType.RACE_STARTED,
-                'start_time': event['start_time'],
-                'puzzle': self.game_state_manager.get_current_state().puzzle if self.game_state_manager else []
-            }
-            await self.send(text_data=json.dumps(race_started_msg))
+            try:
+                # Send race started message
+            puzzle = []
+            if self.game_state_manager:
+                try:
+                    state = await self.game_state_manager.get_current_state_async()
+                    puzzle = getattr(state, 'puzzle', [])
+
+                race_started_msg = {
+                    'type': MessageType.RACE_STARTED,
+                    'start_time': event.get('start_time'),
+                    'puzzle': puzzle
+                }
+                await self.send(text_data=json.dumps(race_started_msg))
+            except Exception as e:
+                logger.error(f"Error in race_event: {e}", exc_info=True)
+                await self.send_error("Failed to process race event")
 
     # Helper Methods
 
@@ -472,7 +487,9 @@ class GameConsumer(AsyncWebsocketConsumer):
                 if not self.game_session:
                     self.game_session = await self.get_game_session()
                     if not self.game_session:
-                        raise ValueError("No game session available")
+                        logger.error("No game session available")
+                        await self.send_error("Game session not found")
+                        return
 
                 # Get and send state messages
                 state_messages = await self.get_state_messages_async(self.user.id)
@@ -491,8 +508,8 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def check_auto_completion(self):
         """Check if player's puzzle is complete after a move."""
         try:
-            # First get the current state synchronously
-            state = self.game_state_manager.get_current_state()
+            # Get the current state (async-safe)
+            state = await self.game_state_manager.get_current_state_async()
             if not state or not state.solution:
                 logger.error("No game state or solution available")
                 return
@@ -549,7 +566,7 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def start_race(self):
         """Start the race after countdown."""
         try:
-            success, start_time = self.game_state_manager.start_race()
+            success, start_time = await self.game_state_manager.start_race_async()
             if success:
                 # Broadcast race start
                 await self.channel_layer.group_send(
@@ -712,17 +729,33 @@ class GameConsumer(AsyncWebsocketConsumer):
             return False, None
 
     @database_sync_to_async
-    def get_state_messages_async(self, player_id: int):
-        """Get state messages in database sync context."""
+    def get_game_players_async(self):
+        """Get game player data safely."""
+        try:
+            game = GameSession.objects.get(code=self.game_code)
+            return {
+                'status': game.status,
+                'player1_id': game.player1_id if game.player1 else None,
+                'player2_id': game.player2_id if game.player2 else None,
+            }
+        except GameSession.DoesNotExist:
+            return {
+                'status': None,
+                'player1_id': None,
+                'player2_id': None,
+            }
+
+    async def get_state_messages_async(self, player_id: int):
+        """Get state messages using async-safe methods."""
         try:
             if not self.game_session:
-                self.game_session = GameSession.objects.get(code=self.game_code)
+                self.game_session = await self.get_game_session()
 
-            state = self.game_state_manager.get_current_state()
+            state = await self.game_state_manager.get_current_state_async()
             messages = []
 
             # Game state message
-            player_state = state.players.get(player_id)
+            player_state = state.players.get(player_id, None)
             opponent_id = None
             opponent_board = None
 
@@ -735,9 +768,9 @@ class GameConsumer(AsyncWebsocketConsumer):
             # Get player usernames safely
             player1_username = None
             player2_username = None
-            if self.game_session.player1_id in state.players:
+            if self.game_session.player1_id and self.game_session.player1_id in state.players:
                 player1_username = state.players[self.game_session.player1_id].username
-            if self.game_session.player2_id in state.players:
+            if self.game_session.player2_id and self.game_session.player2_id in state.players:
                 player2_username = state.players[self.game_session.player2_id].username
 
             messages.append(GameStateMessage(
@@ -771,20 +804,19 @@ class GameConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error getting state messages: {e}", exc_info=True)
             return []
 
-    @database_sync_to_async
-    def check_completion_async(self, player_id: int):
-        """Check if player's puzzle is complete in database sync context."""
+    async def check_completion_async(self, player_id: int):
+        """Check if player's puzzle is complete using async-safe methods."""
         try:
-            state = self.game_state_manager.get_current_state()
-            player_state = state.players.get(player_id)
+            state = await self.game_state_manager.get_current_state_async()
+            player_state = state.players.get(player_id, None)
 
             if player_state:
                 # Check if board is complete
                 board = player_state.board
                 if all(cell != 0 for row in board for cell in row):
-                    # Check if solution matches
-                    if self.game_state_manager.get_current_state().solution:
-                        if all(board[i][j] == self.game_state_manager.get_current_state().solution[i][j]
+                    # Check if solution matches (get solution from current state)
+                    if state.solution:
+                        if all(board[i][j] == state.solution[i][j]
                                for i in range(9) for j in range(9)):
                             # Mark as completed if not already
                             if not player_state.has_completed:
