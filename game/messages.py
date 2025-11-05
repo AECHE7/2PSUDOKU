@@ -243,3 +243,16 @@ class MessageValidator:
 
         # Validate types and ranges
         try:
+            row = int(data['row'])
+            col = int(data['col'])
+            value = int(data['value'])
+            
+            # Check ranges
+            if not (0 <= row < 9 and 0 <= col < 9):
+                return False
+            if not (0 <= value <= 9):  # 0 is allowed for clearing a cell
+                return False
+                
+            return True
+        except (ValueError, TypeError):
+            return False
