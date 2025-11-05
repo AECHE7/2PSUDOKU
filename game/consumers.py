@@ -516,8 +516,8 @@ class GameConsumer(AsyncWebsocketConsumer):
         try:
             # Get the current state (async-safe)
             state = await self.game_state_manager.get_current_state_async()
-            if not state or not state.solution:
-                logger.error("No game state or solution available")
+            if not state:
+                logger.error("No game state available")
                 return
 
             # Check if game is in progress
@@ -541,32 +541,57 @@ class GameConsumer(AsyncWebsocketConsumer):
                 logger.error("No board state found")
                 return
 
-            # Check if all cells are filled with valid numbers
-            if not all(0 < cell <= 9 for row in board for cell in row):
+            # Check if already completed
+            if player_state.has_completed:
+                logger.debug("Player has already completed the puzzle")
                 return
 
-            # Check against solution
-            correct_solution = True
-            for i in range(9):
-                for j in range(9):
-                    if board[i][j] != state.solution[i][j]:
-                        correct_solution = False
-                        break
-                if not correct_solution:
-                    break
+            # Check if all cells are filled
+            if any(cell == 0 for row in board for cell in row):
+                logger.debug("Board is not completely filled")
+                return
 
-            if correct_solution:
-                logger.info(f"Player {self.user.username} completed the puzzle correctly")
-                # If not already completed, handle completion
-                if not player_state.has_completed:
-                    try:
-                        completion_time = (timezone.now() - state.start_time).total_seconds()
-                        await self.handle_complete(CompleteMessage(
-                            completion_time=int(completion_time)
-                        ))
-                    except Exception as e:
-                        logger.error(f"Error handling completion: {e}", exc_info=True)
-                        await self.send_error("Failed to process puzzle completion")
+            # Verify each row contains numbers 1-9
+            for row in board:
+                if sorted(row) != list(range(1, 10)):
+                    logger.debug("Invalid row detected")
+                    return
+
+            # Verify each column contains numbers 1-9
+            for col in range(9):
+                column = [board[row][col] for row in range(9)]
+                if sorted(column) != list(range(1, 10)):
+                    logger.debug("Invalid column detected")
+                    return
+
+            # Verify each 3x3 box contains numbers 1-9
+            for box_row in range(0, 9, 3):
+                for box_col in range(0, 9, 3):
+                    box_numbers = []
+                    for i in range(3):
+                        for j in range(3):
+                            box_numbers.append(board[box_row + i][box_col + j])
+                    if sorted(box_numbers) != list(range(1, 10)):
+                        logger.debug("Invalid box detected")
+                        return
+
+            # Finally verify against solution
+            if not all(board[i][j] == state.solution[i][j] 
+                      for i in range(9) 
+                      for j in range(9)):
+                logger.debug("Solution does not match")
+                return
+
+            # If we get here, the puzzle is complete and correct
+            logger.info(f"Player {self.user.username} completed the puzzle correctly")
+            try:
+                completion_time = (timezone.now() - state.start_time).total_seconds()
+                await self.handle_complete(CompleteMessage(
+                    completion_time=int(completion_time)
+                ))
+            except Exception as e:
+                logger.error(f"Error handling completion: {e}", exc_info=True)
+                await self.send_error("Failed to process puzzle completion")
 
         except Exception as e:
             logger.error(f"Error in auto-completion check: {e}", exc_info=True)

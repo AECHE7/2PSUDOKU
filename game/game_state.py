@@ -240,25 +240,50 @@ class GameStateManager:
                 board_data = game.board or {}
                 player_board = None
                 if player_id == game.player1_id:
-                    player_board = board_data.get('player1_board')
+                    player_board = board_data.get('player1_board', [])
                 elif player_id == game.player2_id:
-                    player_board = board_data.get('player2_board')
+                    player_board = board_data.get('player2_board', [])
                 
-                solution = board_data.get('solution')
+                solution = board_data.get('solution', [])
                 
                 if not player_board or not solution:
                     logger.error("Cannot complete puzzle: missing board data")
                     return False, None
 
-                # Verify solution is correct
-                is_correct = all(
-                    player_board[i][j] == solution[i][j]
-                    for i in range(9)
-                    for j in range(9)
-                )
+                # First verify all cells are filled
+                if any(cell == 0 for row in player_board for cell in row):
+                    logger.error("Cannot complete puzzle: board is not completely filled")
+                    return False, None
 
-                if not is_correct:
-                    logger.error("Cannot complete puzzle: solution is incorrect")
+                # Verify each row contains numbers 1-9
+                for row in player_board:
+                    if sorted(row) != list(range(1, 10)):
+                        logger.error("Cannot complete puzzle: invalid row")
+                        return False, None
+
+                # Verify each column contains numbers 1-9
+                for col in range(9):
+                    column = [player_board[row][col] for row in range(9)]
+                    if sorted(column) != list(range(1, 10)):
+                        logger.error("Cannot complete puzzle: invalid column")
+                        return False, None
+
+                # Verify each 3x3 box contains numbers 1-9
+                for box_row in range(0, 9, 3):
+                    for box_col in range(0, 9, 3):
+                        box_numbers = []
+                        for i in range(3):
+                            for j in range(3):
+                                box_numbers.append(player_board[box_row + i][box_col + j])
+                        if sorted(box_numbers) != list(range(1, 10)):
+                            logger.error("Cannot complete puzzle: invalid box")
+                            return False, None
+
+                # Finally verify against solution
+                if any(player_board[i][j] != solution[i][j] 
+                      for i in range(9) 
+                      for j in range(9)):
+                    logger.error("Cannot complete puzzle: does not match solution")
                     return False, None
 
                 completion_time = timezone.now() - game.start_time
@@ -352,44 +377,76 @@ class GameStateManager:
         """Validate a move against the current game state."""
         state = self.get_current_state()
 
-        # Check if game is in progress
-        if state.status != GameStatus.IN_PROGRESS:
-            return False
-
-        # Check if player is in game
-        if player_id not in state.players:
-            return False
-
-        player_state = state.players[player_id]
-
-        # Check bounds
-        if not (0 <= row < 9 and 0 <= col < 9 and 1 <= value <= 9):
-            return False
-
-        # Check if cell is already filled in puzzle (immutable)
-        if state.puzzle[row][col] != 0:
-            return False
-
-        # Check Sudoku rules against player's current board
-        board = player_state.board
-
-        # Check row - exclude current cell
-        for c in range(9):
-            if c != col and board[row][c] == value:
+        try:
+            # Check if game is in progress
+            if state.status != GameStatus.IN_PROGRESS:
+                logger.error(f"Move validation failed: game status is {state.status}")
                 return False
 
-        # Check column - exclude current cell
-        for r in range(9):
-            if r != row and board[r][col] == value:
+            # Check if player is in game
+            if player_id not in state.players:
+                logger.error(f"Move validation failed: player {player_id} not in game")
                 return False
 
-        # Check 3x3 box - exclude current cell
-        box_row = (row // 3) * 3
-        box_col = (col // 3) * 3
-        for r in range(box_row, box_row + 3):
-            for c in range(box_col, box_col + 3):
-                if (r != row or c != col) and board[r][c] == value:
+            player_state = state.players[player_id]
+            if not player_state:
+                logger.error("Move validation failed: no player state")
+                return False
+
+            # Check bounds
+            if not (0 <= row < 9 and 0 <= col < 9):
+                logger.error(f"Move validation failed: invalid position ({row}, {col})")
+                return False
+            
+            if not (1 <= value <= 9):
+                logger.error(f"Move validation failed: invalid value {value}")
+                return False
+
+            # Check if cell is already filled in puzzle (immutable)
+            if not state.puzzle:
+                logger.error("Move validation failed: no puzzle state")
+                return False
+
+            if state.puzzle[row][col] != 0:
+                logger.error(f"Move validation failed: cell ({row}, {col}) is immutable")
+                return False
+
+            # Get current board state
+            board = player_state.board
+            if not board:
+                logger.error("Move validation failed: no board state")
+                return False
+
+            # Check if cell is already filled with the same value
+            if board[row][col] == value:
+                return True  # Allow same value to be entered again
+
+            # Check row - exclude current cell
+            for c in range(9):
+                if c != col and board[row][c] == value:
+                    logger.error(f"Move validation failed: {value} already in row {row}")
                     return False
+
+            # Check column - exclude current cell
+            for r in range(9):
+                if r != row and board[r][col] == value:
+                    logger.error(f"Move validation failed: {value} already in column {col}")
+                    return False
+
+            # Check 3x3 box - exclude current cell
+            box_row = (row // 3) * 3
+            box_col = (col // 3) * 3
+            for r in range(box_row, box_row + 3):
+                for c in range(box_col, box_col + 3):
+                    if (r != row or c != col) and board[r][c] == value:
+                        logger.error(f"Move validation failed: {value} already in 3x3 box at ({box_row}, {box_col})")
+                        return False
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Move validation failed with error: {str(e)}", exc_info=True)
+            return False
 
         return True
 
