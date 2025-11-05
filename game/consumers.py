@@ -659,60 +659,82 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def finalize_result(self, game_id, winner_id):
-        """Finalize game result: compute durations and store GameResult."""
+        """Finalize game result: compute durations and store GameResult.
+        Uses DB transaction + select_for_update to avoid race conditions on concurrent submissions.
+        """
         from .models import GameResult
-        game = GameSession.objects.get(id=game_id)
-        winner = User.objects.get(id=winner_id)
-        loser = None
-        if game.player1 and game.player1.id == winner_id:
-            loser = game.player2
-        else:
-            loser = game.player1
-
-        # Idempotent: if a result already exists, reuse it (avoid attribute access that raises DoesNotExist)
-        existing = GameResult.objects.filter(game=game).select_related('winner').first()
-        if existing:
-            total_sec = int(existing.winner_time.total_seconds()) if existing.winner_time else 0
-            wm, ws = divmod(total_sec, 60)
-            return {
-                'winner_id': existing.winner.id,
-                'winner_username': existing.winner.username,
-                'winner_time': f"{wm:02d}:{ws:02d}",
-                'loser_time': 'Did not finish' if not existing.loser_time else str(existing.loser_time),
-            }
-
-        # Compute winner time
-        if game.start_time:
-            winner_time = timezone.now() - game.start_time
-            winner_time_str = f"{int(winner_time.total_seconds() // 60):02d}:{int(winner_time.total_seconds() % 60):02d}"
-        else:
-            winner_time = None
-            winner_time_str = "00:00"
-
-        # Check if loser completed (for future implementation)
-        loser_time = None
-        loser_time_str = "Did not finish"
-
-        # Persist GameResult
-        result = GameResult.objects.create(
-            game=game,
-            winner=winner,
-            loser=loser,
-            winner_time=winner_time or timedelta(0),
-            loser_time=loser_time,
-            difficulty=game.difficulty,
-        )
-        game.winner = winner
-        game.status = 'finished'
-        game.end_time = timezone.now()
-        game.save()
+        from django.db import IntegrityError
         
-        return {
-            'winner_id': winner.id,
-            'winner_username': winner.username,
-            'winner_time': winner_time_str,
-            'loser_time': loser_time_str,
-        }
+        with transaction.atomic():
+            # Lock the game row to serialize concurrent finishers
+            game = GameSession.objects.select_for_update().get(id=game_id)
+            
+            # Determine winner/loser robustly
+            winner = User.objects.get(id=winner_id)
+            loser = None
+            if game.player1 and game.player1.id == winner_id:
+                loser = game.player2
+            else:
+                loser = game.player1
+
+            # If a result already exists, reuse it
+            existing = GameResult.objects.select_for_update().filter(game=game).select_related('winner').first()
+            if existing:
+                total_sec = int(existing.winner_time.total_seconds()) if existing.winner_time else 0
+                wm, ws = divmod(total_sec, 60)
+                return {
+                    'winner_id': existing.winner.id,
+                    'winner_username': existing.winner.username,
+                    'winner_time': f"{wm:02d}:{ws:02d}",
+                    'loser_time': 'Did not finish' if not existing.loser_time else str(existing.loser_time),
+                }
+
+            # Compute winner time
+            if game.start_time:
+                winner_time = timezone.now() - game.start_time
+                winner_time_str = f"{int(winner_time.total_seconds() // 60):02d}:{int(winner_time.total_seconds() % 60):02d}"
+            else:
+                winner_time = None
+                winner_time_str = "00:00"
+
+            # Loser time reserved for future implementation
+            loser_time = None
+            loser_time_str = "Did not finish"
+
+            # Try to create the result (guard against rare race IntegrityError)
+            try:
+                result = GameResult.objects.create(
+                    game=game,
+                    winner=winner,
+                    loser=loser,
+                    winner_time=winner_time or timedelta(0),
+                    loser_time=loser_time,
+                    difficulty=game.difficulty,
+                )
+            except IntegrityError:
+                # Another process created it first; fetch and return
+                existing = GameResult.objects.get(game=game)
+                total_sec = int(existing.winner_time.total_seconds()) if existing.winner_time else 0
+                wm, ws = divmod(total_sec, 60)
+                return {
+                    'winner_id': existing.winner.id,
+                    'winner_username': existing.winner.username,
+                    'winner_time': f"{wm:02d}:{ws:02d}",
+                    'loser_time': 'Did not finish' if not existing.loser_time else str(existing.loser_time),
+                }
+
+            # Update game terminal state
+            game.winner = winner
+            game.status = 'finished'
+            game.end_time = timezone.now()
+            game.save()
+            
+            return {
+                'winner_id': winner.id,
+                'winner_username': winner.username,
+                'winner_time': winner_time_str,
+                'loser_time': loser_time_str,
+            }
 
     @database_sync_to_async
     def create_new_game_for_rematch(self, player1_id, player2_id, difficulty):
