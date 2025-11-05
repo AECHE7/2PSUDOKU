@@ -64,6 +64,9 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.handle_puzzle_complete(data)
         elif message_type == 'get_board':
             await self.handle_get_board(data)
+        elif message_type == 'notification':
+            # Handle notification messages (these are usually just client acknowledgments)
+            pass
         else:
             await self.send(text_data=json.dumps({'error': f'Unknown message type: {message_type}'}))
     

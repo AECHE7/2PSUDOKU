@@ -99,9 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // After each input, check if board is fully filled locally and notify server
+    // After each input, check if board is fully filled locally and show finish button
     if (isLocalBoardComplete()) {
-      ws.send(JSON.stringify({ type: 'complete' }));
+      showFinishButton();
     }
   });
   
@@ -129,6 +129,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Finish button
+  const finishBtn = document.getElementById('finish-btn');
+  if (finishBtn) {
+    finishBtn.addEventListener('click', () => {
+      // Check if puzzle is complete before submitting
+      if (isLocalBoardComplete()) {
+        ws.send(JSON.stringify({ type: 'complete' }));
+        finishBtn.disabled = true;
+        finishBtn.textContent = 'Submitted!';
+        addMessage('Solution submitted!');
+      } else {
+        addMessage('Please complete the puzzle before submitting!', 'error');
+      }
+    });
+  }
+
   // Timers
   let timerInterval = null;
   let raceStartTime = null;
@@ -150,6 +166,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (timerInterval) {
       clearInterval(timerInterval);
       timerInterval = null;
+    }
+  }
+
+  function showFinishButton() {
+    const finishBtn = document.getElementById('finish-btn');
+    if (finishBtn && finishBtn.style.display === 'none') {
+      finishBtn.style.display = 'inline-block';
+      addMessage('Puzzle complete! Click "Submit Solution" to finish.');
     }
   }
 
