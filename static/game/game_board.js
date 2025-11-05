@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const player2Id = gameDataEl.dataset.player2Id ? parseInt(gameDataEl.dataset.player2Id) : null;
   const isPlayer1 = gameDataEl.dataset.isPlayer1 === 'true';
   const isPlayer2 = gameDataEl.dataset.isPlayer2 === 'true';
-  let currentPlayerId = gameDataEl.dataset.currentPlayerId ? parseInt(gameDataEl.dataset.currentPlayerId) : null;
+
   
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const wsUrl = `${proto}://${window.location.host}/ws/game/${gameCode}/`;
@@ -15,12 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const messageDiv = document.getElementById('messages');
   let cellInputs = document.querySelectorAll('.cell-input');
-  let currentTurnPlayerId = currentPlayerId;
+
   
   ws.onopen = () => {
     console.log('WebSocket connected');
     addMessage('Connected to game server');
-    updateInputDisabledState();
     
     // Send join message
     ws.send(JSON.stringify({
@@ -36,17 +35,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.type === 'notification') {
       addMessage(data.message);
     } else if (data.type === 'game_state') {
+      // Initial state: puzzle + player's board
       updateBoardFromState(data.board);
-      addMessage(`Game started! Players: ${data.player1} vs ${data.player2 || 'Waiting...'}`);
+      addMessage(`Room: players ${data.player1} vs ${data.player2 || 'Waiting...'}`);
+      // If race already started, start timer
+      if (data.start_time) {
+        startTimers(new Date(data.start_time));
+      }
     } else if (data.type === 'move') {
       addMessage(`${data.username} placed ${data.value} at row ${data.row + 1}, col ${data.col + 1}`);
-      updateCellDisplay(data.row, data.col, data.value);
+      // Update appropriate player's board cell
+      updateCellDisplay(data.row, data.col, data.value, data.player_id);
     } else if (data.type === 'board') {
       updateBoardFromState(data.board);
-    } else if (data.type === 'current_turn_updated') {
-      currentTurnPlayerId = data.player_id;
-      addMessage(`${data.username}'s turn`);
-      updateInputDisabledState();
+    } else if (data.type === 'race_started') {
+      // Start timers and ensure both boards have the puzzle
+      const startTime = new Date(data.start_time);
+      startTimers(startTime);
+      if (data.puzzle) {
+        updateBoardFromState(data.board || data.puzzle);
+      }
+      addMessage('Race started — good luck!');
+    } else if (data.type === 'race_finished') {
+      addMessage(`${data.winner_username} finished the puzzle in ${data.winner_time}`);
+      stopTimers();
     } else if (data.error) {
       addMessage(`Error: ${data.error}`, 'error');
     }
@@ -66,13 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('change', (e) => {
     if (!e.target.classList.contains('cell-input')) return;
     if (e.target.disabled) return;
-    
-    // Check if it's player's turn
-    if (currentTurnPlayerId !== playerId) {
-      addMessage('It is not your turn!', 'error');
-      e.target.value = '';
-      return;
-    }
+    // Race mode: allow simultaneous input
     
     const cell = e.target.closest('.sudoku-cell');
     if (!cell) return;
@@ -92,12 +98,68 @@ document.addEventListener('DOMContentLoaded', () => {
       // Allow clearing, but don't send empty move
       return;
     }
+
+    // After each input, check if board is fully filled locally and notify server
+    if (isLocalBoardComplete()) {
+      ws.send(JSON.stringify({ type: 'complete' }));
+    }
   });
   
   // Request current board state
   setTimeout(() => {
     ws.send(JSON.stringify({ type: 'get_board' }));
   }, 500);
+
+  // Ready/start UI
+  const readyBtn = document.getElementById('ready-btn');
+  const startRaceBtn = document.getElementById('start-race-btn');
+  if (readyBtn) {
+    readyBtn.style.display = 'inline-block';
+    readyBtn.addEventListener('click', () => {
+      ws.send(JSON.stringify({ type: 'ready' }));
+      readyBtn.disabled = true;
+      readyBtn.textContent = 'Waiting for opponent...';
+    });
+  }
+  if (startRaceBtn && isPlayer1) {
+    // Optionally allow host to force start
+    startRaceBtn.style.display = 'inline-block';
+    startRaceBtn.addEventListener('click', () => {
+      ws.send(JSON.stringify({ type: 'ready' }));
+    });
+  }
+
+  // Timers
+  let timerInterval = null;
+  let raceStartTime = null;
+
+  function startTimers(startTime) {
+    raceStartTime = startTime;
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      const now = new Date();
+      const elapsed = Math.max(0, Math.floor((now - raceStartTime) / 1000));
+      const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+      const ss = String(elapsed % 60).padStart(2, '0');
+      document.getElementById('player1-timer').textContent = `${mm}:${ss}`;
+      document.getElementById('player2-timer').textContent = `${mm}:${ss}`;
+    }, 500);
+  }
+
+  function stopTimers() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  function isLocalBoardComplete() {
+    const inputs = document.querySelectorAll('.cell-input');
+    for (const input of inputs) {
+      if (!input.value || input.value === '') return false;
+    }
+    return true;
+  }
   
   function addMessage(text, className = '') {
     const div = document.createElement('div');
@@ -121,28 +183,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   
-  function updateCellDisplay(row, col, value) {
+  function updateCellDisplay(row, col, value, player_id) {
     const input = document.querySelector(`.sudoku-cell[data-row="${row}"][data-col="${col}"] .cell-input`);
     if (input) {
       input.value = value;
-      input.disabled = true;
+      // Only disable if the move was from this client; otherwise keep editable for local player
+      if (player_id !== playerId) {
+        // show opponent move but keep inputs enabled for local edits
+        input.classList.add('opponent-move');
+      } else {
+        input.disabled = true;
+        input.classList.add('prefilled');
+      }
     }
   }
   
-  function updateInputDisabledState() {
-    cellInputs = document.querySelectorAll('.cell-input');
-    const isMyTurn = currentTurnPlayerId === playerId;
-    
-    cellInputs.forEach(input => {
-      // Don't override prefilled cells
-      if (!input.classList.contains('prefilled')) {
-        input.disabled = !isMyTurn;
-        if (isMyTurn) {
-          input.classList.add('active');
-        } else {
-          input.classList.remove('active');
-        }
-      }
-    });
-  }
+
 });

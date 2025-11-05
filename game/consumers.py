@@ -2,6 +2,7 @@ import json
 import uuid
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+from django.utils import timezone
 from django.contrib.auth.models import User
 from .models import GameSession, Move
 from .sudoku import SudokuPuzzle
@@ -52,11 +53,15 @@ class GameConsumer(AsyncWebsocketConsumer):
             return
         
         message_type = data.get('type')
-        
+
         if message_type == 'join_game':
             await self.handle_join_game(data)
+        elif message_type == 'ready':
+            await self.handle_player_ready(data)
         elif message_type == 'move':
             await self.handle_move(data)
+        elif message_type == 'complete':
+            await self.handle_puzzle_complete(data)
         elif message_type == 'get_board':
             await self.handle_get_board(data)
         else:
@@ -83,14 +88,27 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({'error': 'Cannot join this game'}))
             return
         
-        # Send game state to client (fetch board via id)
-        board_state = await self.get_board_state(game_id)
+        # Send game state to client (fetch puzzle + player board via id)
+        puzzle = await self.get_puzzle(game_id)
+        player_board = await self.get_player_board(game_id, self.user.id)
         await self.send(text_data=json.dumps({
             'type': 'game_state',
-            'board': board_state,
+            'puzzle': puzzle,
+            'board': player_board,
             'player1': game_info['player1_username'],
             'player2': game_info['player2_username'],
+            'status': await self.get_game_status(game_id),
+            'start_time': await self.get_start_time_iso(game_id),
         }))
+
+        # Notify group that a player joined
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                'type': 'player_joined',
+                'username': self.user.username,
+            }
+        )
     
     async def handle_move(self, data):
         """Handle a player placing a number."""
@@ -108,14 +126,8 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({'error': 'Game not found'}))
             return
 
-        # Check if it's this player's turn (async-safe)
-        current_turn_id = await self.get_current_turn_id(game_id)
-        if current_turn_id != getattr(self.user, 'id', None):
-            await self.send(text_data=json.dumps({'error': 'Not your turn'}))
-            return
-        
-        # Validate move server-side (fetch board state via id)
-        current_board = await self.get_board_state(game_id)
+        # Race mode: both players can play simultaneously. Fetch the player's board.
+        current_board = await self.get_player_board(game_id, self.user.id)
         puzzle = SudokuPuzzle.from_dict({'board': current_board})
         if not puzzle.is_valid_placement(row, col, value):
             await self.send(text_data=json.dumps({'error': 'Invalid move'}))
@@ -123,17 +135,12 @@ class GameConsumer(AsyncWebsocketConsumer):
         
         # Record the move
         move = await self.create_move(game_id, self.user.id, row, col, value)
-
-        # Update board state
+        # Update player's board state
         new_board = [list(r) for r in current_board]
         new_board[row][col] = value
-        await self.update_game_board(game_id, new_board)
-        
-        # Switch current turn (async-safe)
-        next_player_info = await self.switch_turn(game_id)
-        await self.update_game_turn(game_id, next_player_info['next_player_id'])
-        
-        # Broadcast the move to all players
+        await self.update_player_board(game_id, self.user.id, new_board)
+
+        # Broadcast the move to all players so both UIs update
         await self.channel_layer.group_send(
             self.group_name,
             {
@@ -142,19 +149,23 @@ class GameConsumer(AsyncWebsocketConsumer):
                 'row': row,
                 'col': col,
                 'value': value,
-                'next_player_id': next_player_info['next_player_id'],
-                'next_player_username': next_player_info['next_player_username'],
+                'player_id': self.user.id,
             }
         )
+
+        # After the move, check if player's board is complete
+        if SudokuPuzzle.from_dict({'board': new_board}).is_complete():
+            # Mark completion
+            await self.handle_puzzle_complete({'player_id': self.user.id})
     
     async def handle_get_board(self, data):
         """Send current board state to client."""
-        game = await self.get_game()
-        if not game:
+        game_id = await self.get_game_id()
+        if not game_id:
             await self.send(text_data=json.dumps({'error': 'Game not found'}))
             return
-        
-        board_state = await self.get_board_state(game)
+
+        board_state = await self.get_player_board(game_id, self.user.id)
         await self.send(text_data=json.dumps({
             'type': 'board',
             'board': board_state,
@@ -165,6 +176,27 @@ class GameConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             'type': 'notification',
             'message': f"{event['username']} connected",
+        }))
+
+    async def player_joined(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'notification',
+            'message': f"{event['username']} joined the room",
+        }))
+
+    async def race_started(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'race_started',
+            'start_time': event.get('start_time'),
+            'puzzle': event.get('puzzle'),
+        }))
+
+    async def race_finished(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'race_finished',
+            'winner_id': event.get('winner_id'),
+            'winner_username': event.get('winner_username'),
+            'winner_time': event.get('winner_time'),
         }))
     
     async def player_disconnected(self, event):
@@ -180,14 +212,69 @@ class GameConsumer(AsyncWebsocketConsumer):
             'row': event['row'],
             'col': event['col'],
             'value': event['value'],
+            'player_id': event.get('player_id'),
         }))
         
-        # Send turn update
-        await self.send(text_data=json.dumps({
-            'type': 'current_turn_updated',
-            'player_id': event['next_player_id'],
-            'username': event['next_player_username'],
-        }))
+
+
+    async def handle_player_ready(self, data):
+        """Mark player as ready; if both ready, start the race."""
+        game_id = await self.get_game_id()
+        if not game_id:
+            await self.send(text_data=json.dumps({'error': 'Game not found'}))
+            return
+
+        both_ready = await self.set_player_ready(game_id, self.user.id)
+
+        # Notify group about readiness
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                'type': 'notification',
+                'message': f"{self.user.username} is ready",
+            }
+        )
+
+        if both_ready:
+            # Set start time and broadcast start with puzzle
+            start_iso = await self.set_start_time(game_id)
+            puzzle = await self.get_puzzle(game_id)
+            await self.channel_layer.group_send(
+                self.group_name,
+                {
+                    'type': 'race_started',
+                    'start_time': start_iso,
+                    'puzzle': puzzle,
+                }
+            )
+
+    async def handle_puzzle_complete(self, data):
+        """Handle a player's reported completion; verify and finalize result."""
+        game_id = await self.get_game_id()
+        if not game_id:
+            await self.send(text_data=json.dumps({'error': 'Game not found'}))
+            return
+
+        # Verify player's board on server
+        board = await self.get_player_board(game_id, self.user.id)
+        puzzle = SudokuPuzzle.from_dict({'board': board})
+        if not puzzle.is_complete():
+            await self.send(text_data=json.dumps({'error': 'Board is not a valid completed solution'}))
+            return
+
+        # Finalize result (db-side)
+        result = await self.finalize_result(game_id, self.user.id)
+
+        # Broadcast finish
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                'type': 'race_finished',
+                'winner_id': result['winner_id'],
+                'winner_username': result['winner_username'],
+                'winner_time': result['winner_time'],
+            }
+        )
     
     # Database operations
     @database_sync_to_async
@@ -209,7 +296,7 @@ class GameConsumer(AsyncWebsocketConsumer):
                 'puzzle': [list(row) for row in puzzle.board],
                 'current': [list(row) for row in puzzle.board],
             }
-            game.current_turn = game.player1
+
             game.save()
         return game.id
     
@@ -229,6 +316,99 @@ class GameConsumer(AsyncWebsocketConsumer):
             return GameSession.objects.get(code=self.code).id
         except GameSession.DoesNotExist:
             return None
+
+    @database_sync_to_async
+    def get_puzzle(self, game_id):
+        game = GameSession.objects.get(id=game_id)
+        return game.board.get('puzzle', [])
+
+    @database_sync_to_async
+    def get_player_board(self, game_id, user_id):
+        game = GameSession.objects.get(id=game_id)
+        if game.player1 and game.player1.id == user_id:
+            return game.board.get('player1_board', game.board.get('puzzle', []))
+        else:
+            return game.board.get('player2_board', game.board.get('puzzle', []))
+
+    @database_sync_to_async
+    def update_player_board(self, game_id, user_id, new_board):
+        game = GameSession.objects.get(id=game_id)
+        if game.player1 and game.player1.id == user_id:
+            game.board['player1_board'] = [list(row) for row in new_board]
+        else:
+            game.board['player2_board'] = [list(row) for row in new_board]
+        game.save()
+
+    @database_sync_to_async
+    def set_player_ready(self, game_id, user_id):
+        game = GameSession.objects.get(id=game_id)
+        ready = game.board.get('ready', {})
+        if game.player1 and game.player1.id == user_id:
+            ready['player1'] = True
+        else:
+            ready['player2'] = True
+        game.board['ready'] = ready
+        game.save()
+        return ready.get('player1', False) and ready.get('player2', False)
+
+    @database_sync_to_async
+    def set_start_time(self, game_id):
+        game = GameSession.objects.get(id=game_id)
+        if not game.start_time:
+            game.start_time = timezone.now()
+            game.status = 'in_progress'
+            game.save()
+        return game.start_time.isoformat() if game.start_time else None
+
+    @database_sync_to_async
+    def get_start_time_iso(self, game_id):
+        game = GameSession.objects.get(id=game_id)
+        return game.start_time.isoformat() if game.start_time else None
+
+    @database_sync_to_async
+    def get_game_status(self, game_id):
+        game = GameSession.objects.get(id=game_id)
+        return game.status
+
+    @database_sync_to_async
+    def finalize_result(self, game_id, winner_id):
+        """Finalize game result: compute durations and store GameResult."""
+        from .models import GameResult
+        game = GameSession.objects.get(id=game_id)
+        winner = User.objects.get(id=winner_id)
+        loser = None
+        if game.player1 and game.player1.id == winner_id:
+            loser = game.player2
+        else:
+            loser = game.player1
+
+        # compute times
+        if game.start_time:
+            winner_time = timezone.now() - game.start_time
+        else:
+            winner_time = None
+
+        # Try to estimate loser time from their board completeness; if not complete, leave blank
+        loser_time = None
+
+        # Persist GameResult
+        result = GameResult.objects.create(
+            game=game,
+            winner=winner,
+            loser=loser,
+            winner_time=winner_time or timezone.timedelta(0),
+            loser_time=loser_time,
+            difficulty=game.difficulty,
+        )
+        game.winner = winner
+        game.status = 'finished'
+        game.end_time = timezone.now()
+        game.save()
+        return {
+            'winner_id': winner.id,
+            'winner_username': winner.username,
+            'winner_time': str(winner_time),
+        }
     
     @database_sync_to_async
     def add_player2(self, game_id, user_id):
@@ -262,13 +442,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         game.board['current'] = [list(row) for row in new_board]
         game.save()
     
-    @database_sync_to_async
-    def update_game_turn(self, game_id, next_player_id):
-        """Update whose turn it is."""
-        next_player = User.objects.get(id=next_player_id)
-        game = GameSession.objects.get(id=game_id)
-        game.current_turn = next_player
-        game.save()
+
     
     @database_sync_to_async
     def get_board_state(self, game_id):
@@ -289,27 +463,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             'player2_username': game.player2.username if game.player2 else None,
         }
     
-    @database_sync_to_async
-    def get_current_turn_id(self, game_id):
-        """Get current turn player ID safely by game id."""
-        game = GameSession.objects.get(id=game_id)
-        return game.current_turn.id if game.current_turn else None
-    
-    @database_sync_to_async
-    def switch_turn(self, game_id):
-        """Compute next player (do not persist) and return info by game id."""
-        game = GameSession.objects.get(id=game_id)
-        if not game.player2:
-            # No second player yet; keep same turn
-            next_player = game.current_turn
-        else:
-            if game.current_turn and game.player1 and game.current_turn.id == game.player1.id:
-                next_player = game.player2
-            else:
-                next_player = game.player1
 
-        return {
-            'next_player_id': next_player.id if next_player else None,
-            'next_player_username': next_player.username if next_player else None,
-        }
+    
+
 
