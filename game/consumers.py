@@ -419,15 +419,39 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def check_auto_completion(self):
         """Check if player's puzzle is complete after a move."""
         try:
-            state = await self.check_completion_async(self.user.id)
-            if state and state.has_completed:
-                # Auto-submit completion
-                await self.handle_complete(CompleteMessage(
-                    completion_time=int(state.completion_time.total_seconds())
-                ))
+            # First get the current state synchronously
+            state = self.game_state_manager.get_current_state()
+            if not state or not state.solution:
+                logger.error("No game state or solution available")
+                return
+
+            player_state = state.players.get(self.user.id)
+            if not player_state:
+                logger.error("No player state found")
+                return
+
+            # Check if board is complete and correct
+            board = player_state.board
+            if not board:
+                logger.error("No board state found")
+                return
+
+            # Check if all cells are filled with valid numbers
+            if not all(0 < cell <= 9 for row in board for cell in row):
+                return
+
+            # Check against solution
+            if all(board[i][j] == state.solution[i][j] for i in range(9) for j in range(9)):
+                logger.info(f"Player {self.user.username} completed the puzzle correctly")
+                # If not already completed, handle completion
+                if not player_state.has_completed:
+                    completion_time = (timezone.now() - state.start_time).total_seconds()
+                    await self.handle_complete(CompleteMessage(
+                        completion_time=int(completion_time)
+                    ))
 
         except Exception as e:
-            logger.error(f"Error in auto-completion check: {e}")
+            logger.error(f"Error in auto-completion check: {e}", exc_info=True)
 
     async def start_countdown(self):
         """Start 3-second countdown before race begins."""

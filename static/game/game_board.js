@@ -503,18 +503,41 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!playerBoard) return false;
 
     const inputs = playerBoard.querySelectorAll('.cell-input');
-    return Array.from(inputs).every(input => input.value && input.value !== '');
+    return Array.from(inputs).every(input => {
+      const value = parseInt(input.value);
+      return value && value >= 1 && value <= 9;
+    });
   }
 
   function isBoardValid() {
+    // First check if the board has any conflicts
     for (let row = 0; row < 9; row++) {
       for (let col = 0; col < 9; col++) {
         const value = getCellValue(row, col);
         if (value && !validateMove(row, col, value)) {
+          console.log(`Invalid value ${value} at position ${row},${col}`);
           return false;
         }
       }
     }
+
+    // Then check if all original puzzle values are preserved
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return false;
+
+    for (let row = 0; row < 9; row++) {
+      for (let col = 0; col < 9; col++) {
+        const puzzleValue = gameState.puzzle[row][col];
+        if (puzzleValue !== 0) {
+          const currentValue = getCellValue(row, col);
+          if (currentValue !== puzzleValue) {
+            console.log(`Original puzzle value changed at ${row},${col}: ${puzzleValue} -> ${currentValue}`);
+            return false;
+          }
+        }
+      }
+    }
+
     return true;
   }
 
