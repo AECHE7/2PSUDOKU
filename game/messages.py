@@ -44,6 +44,8 @@ class MessageType:
     ERROR = "error"
     PING = "ping"
     PONG = "pong"
+    COUNTDOWN = "countdown"
+    RACE_COUNTDOWN = "race_countdown"
 
 
 @dataclass
@@ -321,6 +323,26 @@ class PongMessage(WebSocketMessage):
         super().__init__(type=MessageType.PONG, data={})
 
 
+@dataclass
+class CountdownMessage(WebSocketMessage):
+    """Countdown before race starts."""
+    def __init__(self, seconds: int):
+        super().__init__(
+            type=MessageType.COUNTDOWN,
+            data={'seconds': seconds}
+        )
+
+
+@dataclass
+class RaceCountdownMessage(WebSocketMessage):
+    """Race countdown message."""
+    def __init__(self, countdown: int):
+        super().__init__(
+            type=MessageType.RACE_COUNTDOWN,
+            data={'countdown': countdown}
+        )
+
+
 class MessageFactory:
     """Factory for creating message instances."""
 
@@ -349,6 +371,8 @@ class MessageFactory:
             MessageType.NOTIFICATION: NotificationMessage,
             MessageType.PING: PingMessage,
             MessageType.PONG: PongMessage,
+            MessageType.COUNTDOWN: CountdownMessage,
+            MessageType.RACE_COUNTDOWN: RaceCountdownMessage,
         }
 
         if msg_type not in message_classes:
@@ -431,6 +455,10 @@ class MessageFactory:
             return message_classes[msg_type]()
         elif msg_type == MessageType.PONG:
             return message_classes[msg_type]()
+        elif msg_type == MessageType.COUNTDOWN:
+            return message_classes[msg_type](data.get('seconds'))
+        elif msg_type == MessageType.RACE_COUNTDOWN:
+            return message_classes[msg_type](data.get('countdown'))
 
         # Default case - pass all data to constructor
         return message_classes[msg_type](**data)

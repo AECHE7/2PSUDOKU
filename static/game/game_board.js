@@ -111,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const handlers = {
       game_state: handleGameState,
       race_started: handleRaceStarted,
+      countdown: handleCountdown,
       move_made: handleMoveMade,
       race_finished: handleRaceFinished,
       new_game_created: handleNewGameCreated,
@@ -153,6 +154,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     gameState.gameStarted = true;
     gameState.raceStartTime = new Date(message.start_time);
+
+    // Hide countdown
+    const countdownElement = document.getElementById('countdown');
+    if (countdownElement) {
+      countdownElement.style.display = 'none';
+    }
 
     // Update puzzle if provided
     if (message.puzzle) {
@@ -234,6 +241,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function handleNotification(message) {
     addMessage(message.message, message.level || 'info');
+  }
+
+  function handleCountdown(message) {
+    const countdownElement = document.getElementById('countdown');
+    if (countdownElement) {
+      countdownElement.textContent = `Race starts in ${message.seconds}...`;
+      countdownElement.style.display = 'block';
+    }
+
+    // Also show countdown in game status
+    if (elements.gameStatus) {
+      elements.gameStatus.innerHTML = `⏱️ Race starts in ${message.seconds}...`;
+      elements.gameStatus.style.color = 'orange';
+    }
+
+    addMessage(`⏱️ Race starts in ${message.seconds}...`, 'info');
   }
 
   // UI Update Functions

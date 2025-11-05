@@ -5,6 +5,7 @@ Uses structured message protocol and centralized state management.
 
 import json
 import logging
+import asyncio
 from typing import Dict, Any, Optional
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
@@ -17,7 +18,8 @@ from .messages import (
     JoinGameMessage, MoveMessage, CompleteMessage,
     ErrorMessage, NotificationMessage, PlayerConnectedMessage,
     PlayerJoinedMessage, PlayerDisconnectedMessage, PlayerLeftGameMessage,
-    LeaveGameMessage, LeaveGameConfirmedMessage, PingMessage, PongMessage
+    LeaveGameMessage, LeaveGameConfirmedMessage, PingMessage, PongMessage,
+    CountdownMessage, RaceCountdownMessage
 )
 from .game_state import GameStateManager
 from .models import GameSession
@@ -172,6 +174,12 @@ class GameConsumer(AsyncWebsocketConsumer):
             if not success:
                 await self.send_error("Unable to join game")
                 return
+
+            # Check if we need to start countdown
+            game = await self.get_game_session()
+            if game and game.status == 'ready' and game.player1 and game.player2:
+                # Start countdown for both players
+                await self.start_countdown()
 
             # Send state synchronization
             await self.send_state_sync()
@@ -361,6 +369,24 @@ class GameConsumer(AsyncWebsocketConsumer):
                 'difficulty': event['difficulty'],
             }))
 
+    async def countdown_event(self, event):
+        """Handle countdown events."""
+        countdown_msg = CountdownMessage(event['seconds'])
+        await self.send(text_data=json.dumps(countdown_msg.to_dict()))
+
+    async def race_event(self, event):
+        """Handle race events."""
+        event_type = event['event_type']
+
+        if event_type == 'started':
+            # Send race started message
+            race_started_msg = {
+                'type': MessageType.RACE_STARTED,
+                'start_time': event['start_time'],
+                'puzzle': self.game_state_manager.get_current_state().puzzle if self.game_state_manager else []
+            }
+            await self.send(text_data=json.dumps(race_started_msg))
+
     # Helper Methods
 
     async def send_state_sync(self):
@@ -388,6 +414,48 @@ class GameConsumer(AsyncWebsocketConsumer):
 
         except Exception as e:
             logger.error(f"Error in auto-completion check: {e}")
+
+    async def start_countdown(self):
+        """Start 3-second countdown before race begins."""
+        try:
+            # Send countdown messages
+            for i in range(3, 0, -1):
+                countdown_msg = CountdownMessage(i)
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        'type': 'countdown_event',
+                        'seconds': i,
+                    }
+                )
+                await asyncio.sleep(1)
+
+            # Start the race
+            await self.start_race()
+
+        except Exception as e:
+            logger.error(f"Error in countdown: {e}")
+
+    async def start_race(self):
+        """Start the race after countdown."""
+        try:
+            success, start_time = self.game_state_manager.start_race()
+            if success:
+                # Broadcast race start
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        'type': 'race_event',
+                        'event_type': 'started',
+                        'start_time': start_time,
+                    }
+                )
+            else:
+                await self.send_error("Failed to start race")
+
+        except Exception as e:
+            logger.error(f"Error starting race: {e}")
+            await self.send_error("Failed to start race")
 
     async def send_error(self, message: str):
         """Send error message to client."""
@@ -427,9 +495,9 @@ class GameConsumer(AsyncWebsocketConsumer):
                     game.player2 = self.user
                     if game.player1:
                         game.status = 'ready'
-                        # Auto-start race when second player joins
-                        game.start_time = timezone.now()
-                        game.status = 'in_progress'
+                        # Start countdown instead of auto-starting
+                        # game.start_time = timezone.now()
+                        # game.status = 'in_progress'
                 else:
                     return False  # Game full
 
