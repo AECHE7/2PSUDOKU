@@ -253,7 +253,9 @@ class GameConsumer(AsyncWebsocketConsumer):
         )
 
         # After the move, check if player's board is complete
-        if SudokuPuzzle.from_dict({'board': new_board}).is_complete():
+        solution = await self.get_solution(game_id)
+        puzzle_check = SudokuPuzzle.from_dict({'board': new_board, 'solution': solution})
+        if puzzle_check.matches_solution():
             # Mark completion
             await self.handle_puzzle_complete({'player_id': self.user.id})
     
@@ -390,21 +392,23 @@ class GameConsumer(AsyncWebsocketConsumer):
             return
 
         print(f"📝 Game ID: {game_id}")
-        print("🔍 Verifying player's board...")
+        print("🔍 Verifying player's board against solution...")
         
-        # Verify player's board on server
+        # Get both the player's board and the solution
         board = await self.get_player_board(game_id, self.user.id)
+        solution = await self.get_solution(game_id)
         print(f"📋 Board retrieved: {len(board)} rows")
+        print(f"✅ Solution retrieved: {len(solution) if solution else 0} rows")
         
-        puzzle = SudokuPuzzle.from_dict({'board': board})
-        print("🧩 Checking if puzzle is complete...")
+        puzzle = SudokuPuzzle.from_dict({'board': board, 'solution': solution})
+        print("🧩 Checking if puzzle matches solution...")
         
-        is_complete = puzzle.is_complete()
-        print(f"✅ Puzzle complete: {is_complete}")
+        is_complete = puzzle.matches_solution()
+        print(f"✅ Puzzle matches solution: {is_complete}")
         
         if not is_complete:
-            print("❌ Board is not valid/complete!")
-            await self.send(text_data=json.dumps({'error': 'Board is not a valid completed solution'}))
+            print("❌ Board does not match the correct solution!")
+            await self.send(text_data=json.dumps({'error': 'Your solution is incorrect. Keep trying!'}))
             return
 
         print("🏆 Finalizing result...")
@@ -557,6 +561,12 @@ class GameConsumer(AsyncWebsocketConsumer):
             return game.board.get('player1_board', game.board.get('puzzle', []))
         else:
             return game.board.get('player2_board', game.board.get('puzzle', []))
+
+    @database_sync_to_async
+    def get_solution(self, game_id):
+        """Get the correct solution for the game."""
+        game = GameSession.objects.get(id=game_id)
+        return game.board.get('solution', None)
 
     @database_sync_to_async
     def update_player_board(self, game_id, user_id, new_board):

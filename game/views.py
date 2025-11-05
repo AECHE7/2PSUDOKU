@@ -137,7 +137,8 @@ def create_game(request):
             player1=request.user,
             difficulty=difficulty,
             board={
-                'puzzle': puzzle.board,
+                'puzzle': puzzle.board,  # The puzzle with holes
+                'solution': puzzle.solution,  # The complete solution
                 'player1_board': [row[:] for row in puzzle.board],  # Each player has own board state
                 'player2_board': [row[:] for row in puzzle.board],
             },

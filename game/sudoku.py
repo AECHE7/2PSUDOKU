@@ -18,12 +18,19 @@ class SudokuPuzzle:
             self.board = [[0 for _ in range(9)] for _ in range(9)]
         else:
             self.board = [row[:] for row in board]
+        
+        # Store the solution separately (for validation)
+        self.solution = None
     
     @staticmethod
     def generate_puzzle(difficulty: str = 'medium') -> 'SudokuPuzzle':
-        """Generate a random valid Sudoku puzzle."""
+        """Generate a random valid Sudoku puzzle and store the solution."""
         puzzle = SudokuPuzzle()
         puzzle._generate_full_solution()
+        
+        # Store the complete solution before removing cells
+        puzzle.solution = [row[:] for row in puzzle.board]
+        
         puzzle._remove_cells(difficulty)
         return puzzle
     
@@ -95,6 +102,25 @@ class SudokuPuzzle:
                 return False
         return self._is_valid_solution()
     
+    def matches_solution(self) -> bool:
+        """Check if the current board matches the stored solution exactly."""
+        if not self.solution:
+            # If no solution stored, fall back to validation
+            return self.is_complete()
+        
+        # Check if all cells are filled
+        for row in self.board:
+            if 0 in row:
+                return False
+        
+        # Compare with solution
+        for row in range(9):
+            for col in range(9):
+                if self.board[row][col] != self.solution[row][col]:
+                    return False
+        
+        return True
+    
     def _is_valid_solution(self) -> bool:
         """Verify the entire board is a valid solution using efficient set-based validation."""
         # Check all rows have 1-9
@@ -122,12 +148,17 @@ class SudokuPuzzle:
     
     def to_dict(self) -> dict:
         """Convert board to dictionary for JSON serialization."""
-        return {
+        result = {
             'board': self.board,
             'size': 9,
         }
+        if self.solution:
+            result['solution'] = self.solution
+        return result
     
     @staticmethod
     def from_dict(data: dict) -> 'SudokuPuzzle':
         """Create puzzle from dictionary."""
-        return SudokuPuzzle(data.get('board', [[0]*9]*9))
+        puzzle = SudokuPuzzle(data.get('board', [[0]*9]*9))
+        puzzle.solution = data.get('solution')
+        return puzzle
