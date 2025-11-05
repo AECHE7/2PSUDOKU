@@ -212,29 +212,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const value = parseInt(e.target.value);
     
     if (value && value >= 1 && value <= 9) {
-      // Clear any previous validation classes
-      clearValidationHighlights();
+      // Clear any previous validation classes for this cell
+      e.target.classList.remove('correct', 'incorrect', 'invalid');
       
       // Validate move immediately
       const isValidMove = validateMove(row, col, value);
       
       if (isValidMove) {
         e.target.classList.add('correct');
-        e.target.classList.remove('incorrect');
         setTimeout(() => e.target.classList.remove('correct'), 500);
+        // Clear any conflict highlights when a valid move is made
+        clearConflictHighlights();
       } else {
+        // Show immediate feedback with shake animation
         e.target.classList.add('incorrect');
-        e.target.classList.remove('correct');
         
-        // Highlight conflicting cells
+        // Highlight conflicting cells like Sudoku.com
         highlightConflictingCells(row, col, value);
         
         mistakeCount++;
         updateMistakeCount();
+        
+        // After animation, change to permanent invalid state
         setTimeout(() => {
           e.target.classList.remove('incorrect');
+          e.target.classList.add('invalid'); // Permanent red state like Sudoku.com
+        }, 500);
+        
+        // Keep conflict highlights visible longer
+        setTimeout(() => {
           clearConflictHighlights();
-        }, 1500);
+        }, 2000);
       }
 
       safeSend({
@@ -248,8 +256,11 @@ document.addEventListener('DOMContentLoaded', () => {
       highlightRelatedCells(row, col, value);
       
     } else if (e.target.value === '') {
+      // Clear validation states when cell is emptied
+      e.target.classList.remove('correct', 'incorrect', 'invalid');
       updateCellsFilledCount();
       clearHighlights();
+      clearConflictHighlights();
       return;
     }
 
@@ -962,9 +973,31 @@ document.addEventListener('DOMContentLoaded', () => {
   function clearValidationHighlights() {
     const playerBoard = document.getElementById('player-board');
     if (!playerBoard) return;
-    const validationCells = playerBoard.querySelectorAll('.cell-input.correct, .cell-input.incorrect');
+    const validationCells = playerBoard.querySelectorAll('.cell-input.correct, .cell-input.incorrect, .cell-input.invalid');
     validationCells.forEach(cell => {
-      cell.classList.remove('correct', 'incorrect');
+      cell.classList.remove('correct', 'incorrect', 'invalid');
+    });
+  }
+
+  function validateAllCells() {
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return;
+    const cells = playerBoard.querySelectorAll('.cell-input');
+    
+    // Clear existing invalid states
+    cells.forEach(cell => cell.classList.remove('invalid'));
+    
+    // Check each filled cell for validity
+    cells.forEach((cell, index) => {
+      if (cell.value && cell.value !== '') {
+        const row = Math.floor(index / 9);
+        const col = index % 9;
+        const value = parseInt(cell.value);
+        
+        if (!validateMove(row, col, value)) {
+          cell.classList.add('invalid');
+        }
+      }
     });
   }
 
