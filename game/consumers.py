@@ -39,6 +39,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         self.game_state_manager: Optional[GameStateManager] = None
         self.user: Optional[User] = None
         self.is_connected = False
+        self.game_session: Optional[GameSession] = None  # Add game_session attribute
 
     async def connect(self):
         """Handle WebSocket connection."""
@@ -51,12 +52,12 @@ class GameConsumer(AsyncWebsocketConsumer):
 
         # Initialize game state manager
         try:
-            game_session = await self.get_game_session()
-            if not game_session:
+            self.game_session = await self.get_game_session()
+            if not self.game_session:
                 await self.close(code=4004)  # Game not found
                 return
 
-            self.game_state_manager = GameStateManager(game_session)
+            self.game_state_manager = GameStateManager(self.game_session)
         except Exception as e:
             logger.error(f"Failed to initialize game state: {e}")
             await self.close(code=5000)  # Internal error
@@ -170,17 +171,25 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def handle_join_game(self, message: JoinGameMessage):
         """Handle player joining game."""
         try:
-            # Add player to game
+            # Add player to game using sync_to_async
             success = await self.add_player_to_game()
             if not success:
                 await self.send_error("Unable to join game")
                 return
 
+            # Refresh game session
+            self.game_session = await self.get_game_session()
+            
             # Check if we need to start countdown
-            game = await self.get_game_session()
-            if game and game.status == 'ready' and game.player1 and game.player2:
+            if (self.game_session and 
+                self.game_session.status == 'ready' and 
+                self.game_session.player1 and 
+                self.game_session.player2):
                 # Start countdown for both players
                 await self.start_countdown()
+
+            # Update game state manager with latest session
+            self.game_state_manager = GameStateManager(self.game_session)
 
             # Send state synchronization
             await self.send_state_sync()
@@ -643,6 +652,9 @@ class GameConsumer(AsyncWebsocketConsumer):
     def get_state_messages_async(self, player_id: int):
         """Get state messages in database sync context."""
         try:
+            if not self.game_session:
+                self.game_session = GameSession.objects.get(code=self.game_code)
+
             state = self.game_state_manager.get_current_state()
             messages = []
 
@@ -657,12 +669,20 @@ class GameConsumer(AsyncWebsocketConsumer):
                     opponent_board = pstate.board
                     break
 
+            # Get player usernames safely
+            player1_username = None
+            player2_username = None
+            if self.game_session.player1_id in state.players:
+                player1_username = state.players[self.game_session.player1_id].username
+            if self.game_session.player2_id in state.players:
+                player2_username = state.players[self.game_session.player2_id].username
+
             messages.append(GameStateMessage(
                 puzzle=state.puzzle,
                 board=player_state.board if player_state else state.puzzle,
                 opponent_board=opponent_board,
-                player1=state.players.get(self.game_session.player1_id).username if self.game_session.player1 else None,
-                player2=state.players.get(self.game_session.player2_id).username if self.game_session.player2 else None,
+                player1=player1_username,
+                player2=player2_username,
                 status=state.status.value,
                 start_time=state.start_time.isoformat() if state.start_time else None
             ).to_dict())
