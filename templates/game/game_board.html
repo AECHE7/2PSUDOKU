@@ -3,24 +3,39 @@
 
 {% block extra_css %}
 <style>
-  /* Game Layout - Sudoku.com inspired */
+  /* Enhanced Game Layout - Modern & Responsive */
   .game-layout {
     display: grid;
-    grid-template-columns: 1fr 400px;
-    gap: 24px;
-    max-width: 1400px;
+    grid-template-columns: 1fr 420px;
+    gap: 32px;
+    max-width: 1500px;
     margin: 0 auto;
-    padding: 24px;
-    background-color: var(--bg-secondary);
+    padding: 32px 24px;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    min-height: 100vh;
   }
 
-  /* Modern card styling */
+  @media (max-width: 1200px) {
+    .game-layout {
+      grid-template-columns: 1fr;
+      gap: 24px;
+      padding: 24px 16px;
+    }
+  }
+
+  /* Enhanced Modern card styling */
   .game-card {
     background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
     overflow: hidden;
+    transition: all 0.3s ease;
+  }
+
+  .game-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   }
 
   .game-card-header {
@@ -52,48 +67,67 @@
     color: #2196f3;
   }
 
-  /* Top Navigation Bar */
+  /* Enhanced Top Navigation Bar */
   .top-nav {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%);
     color: white;
-    padding: 15px 0;
-    margin: -20px -20px 20px -20px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    padding: 20px 0;
+    margin: -32px -24px 32px -24px;
+    box-shadow: 0 4px 20px rgba(79, 70, 229, 0.3);
+    backdrop-filter: blur(10px);
   }
 
   .nav-content {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 0 20px;
+    padding: 0 24px;
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
 
   .game-title {
-    font-size: 1.5rem;
-    font-weight: bold;
+    font-size: 2rem;
+    font-weight: 800;
     margin: 0;
+    background: linear-gradient(45deg, #fff, #e0e7ff);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .game-title::before {
+    content: "🏁 ";
+    margin-right: 8px;
   }
 
   .nav-actions {
     display: flex;
-    gap: 10px;
+    gap: 12px;
   }
 
   .nav-btn {
-    background: rgba(255,255,255,0.2);
-    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.2);
     color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 0.9rem;
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-size: 0.95rem;
+    font-weight: 600;
     transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
   }
 
   .nav-btn:hover {
-    background: rgba(255,255,255,0.3);
-    transform: translateY(-1px);
+    background: rgba(255,255,255,0.25);
+    border-color: rgba(255,255,255,0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+
+  .nav-btn:active {
+    transform: translateY(0);
   }
 
   /* Interactive Sudoku Grid */
@@ -121,47 +155,57 @@
 
   .sudoku-cell {
     width: 11.11%;
-    height: 52px;
+    height: 56px;
     padding: 0;
     background: white;
     position: relative;
-    border: none;
-    transition: background-color 0.15s ease;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
   }
 
   .sudoku-cell:hover {
-    background: #f8fafc;
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    transform: scale(1.02);
+    z-index: 2;
   }
 
-  /* Enhanced 3x3 box borders */
+  /* Enhanced 3x3 box borders with modern styling */
   .sudoku-cell:nth-child(3n) {
-    border-right: 2px solid #4b5563;
+    border-right: 3px solid #334155;
   }
 
   .sudoku-cell:nth-child(6n) {
-    border-right: 2px solid #4b5563;
+    border-right: 3px solid #334155;
   }
 
   .sudoku-row:nth-child(3n) .sudoku-cell {
-    border-bottom: 2px solid #4b5563;
+    border-bottom: 3px solid #334155;
   }
 
   .sudoku-row:nth-child(6n) .sudoku-cell {
-    border-bottom: 2px solid #4b5563;
+    border-bottom: 3px solid #334155;
   }
 
+  /* Enhanced cell input styling */
   .cell-input {
     width: 100%;
-    height: 50px;
+    height: 54px;
     border: none;
     text-align: center;
-    font-size: 1.25rem;
-    font-weight: 600;
+    font-size: 1.4rem;
+    font-weight: 700;
     background: transparent;
-    transition: all 0.15s ease;
+    transition: all 0.2s ease;
     outline: none;
     cursor: pointer;
-    color: #1f2937;
+    color: #1e293b;
+    border-radius: 4px;
+  }
+
+  .cell-input:focus {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    box-shadow: inset 0 0 0 2px #3b82f6;
+    transform: scale(1.05);
   }
 
   .cell-input:hover {
@@ -269,36 +313,63 @@
     75% { transform: translateX(5px); }
   }
 
-  /* Number Pad */
+  /* Enhanced Number Pad */
   .number-pad {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    margin-top: 20px;
+    gap: 12px;
+    margin-top: 24px;
+    padding: 16px;
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
   }
 
   .number-btn {
-    height: 50px;
-    border: 2px solid #e0e0e0;
-    background: white;
-    font-size: 1.2rem;
-    font-weight: bold;
-    border-radius: 8px;
+    height: 60px;
+    border: 2px solid #cbd5e1;
+    background: linear-gradient(135deg, #ffffff, #f8fafc);
+    font-size: 1.4rem;
+    font-weight: 800;
+    border-radius: 12px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
     position: relative;
     overflow: hidden;
+    color: #1e293b;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .number-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    transition: left 0.5s;
+  }
+
+  .number-btn:hover::before {
+    left: 100%;
   }
 
   .number-btn:hover {
-    border-color: #2196f3;
-    background: #e3f2fd;
-    transform: translateY(-2px);
+    border-color: #3b82f6;
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    transform: translateY(-3px);
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+  }
+
+  .number-btn:active {
+    transform: translateY(-1px);
   }
 
   .number-btn.active {
-    background: #2196f3;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
     color: white;
+    border-color: #1d4ed8;
     border-color: #1976d2;
   }
 
@@ -566,6 +637,204 @@
     .sudoku-grid {
       break-inside: avoid;
     }
+  }
+
+  /* Enhanced Statistics Panel */
+  .stats-panel {
+    background: linear-gradient(135deg, #ffffff, #f8fafc);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
+  }
+
+  .stats-panel h5 {
+    color: #1e293b;
+    font-weight: 800;
+    margin-bottom: 20px;
+    font-size: 1.25rem;
+    text-align: center;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+
+  .stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 12px;
+    border: 1px solid #f1f5f9;
+    transition: all 0.2s ease;
+  }
+
+  .stat-item:hover {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: #cbd5e1;
+    transform: translateX(4px);
+  }
+
+  .stat-label {
+    font-weight: 600;
+    color: #475569;
+    font-size: 0.95rem;
+  }
+
+  .stat-value {
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 4px 12px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+    color: #1e293b;
+  }
+
+  .stat-value.time {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    color: #1d4ed8;
+    font-family: 'Courier New', monospace;
+  }
+
+  .stat-value.mistakes {
+    background: linear-gradient(135deg, #fee2e2, #fecaca);
+    color: #dc2626;
+  }
+
+  .stat-value.difficulty {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #d97706;
+  }
+
+  .connection-good {
+    background: linear-gradient(135deg, #d1fae5, #a7f3d0) !important;
+    color: #065f46 !important;
+  }
+
+  /* Enhanced Messages Container */  
+  .messages-container {
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9) !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    padding: 16px !important;
+    max-height: 220px !important;
+  }
+
+  /* Enhanced Message Items */
+  .message {
+    padding: 10px 14px !important;
+    margin-bottom: 8px !important;
+    border-radius: 10px !important;
+    border-left: 4px solid #3b82f6 !important;
+    background: rgba(255, 255, 255, 0.8) !important;
+    font-size: 0.9rem !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .message:hover {
+    background: rgba(255, 255, 255, 1) !important;
+    transform: translateX(2px) !important;
+  }
+
+  .message.error {
+    border-left-color: #ef4444 !important;
+    background: linear-gradient(135deg, #fef2f2, #fee2e2) !important;
+    color: #dc2626 !important;
+  }
+
+  .message.info {
+    border-left-color: #06b6d4 !important;
+    background: linear-gradient(135deg, #f0f9ff, #e0f2fe) !important;
+    color: #0891b2 !important;
+  }
+
+  /* Enhanced Game Controls */
+  .game-controls {
+    background: linear-gradient(135deg, #ffffff, #f8fafc);
+    border-radius: 16px;
+    padding: 24px;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  .game-controls .btn {
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 14px 32px;
+    border-radius: 12px;
+    border: none;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .game-controls .btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    transition: left 0.6s;
+  }
+
+  .game-controls .btn:hover::before {
+    left: 100%;
+  }
+
+  .game-controls .btn-success {
+    background: linear-gradient(135deg, #10b981, #059669);
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+  }
+
+  .game-controls .btn-success:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(16, 185, 129, 0.5);
+  }
+
+  .game-controls .btn-primary {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
+  }
+
+  .game-controls .btn-primary:hover {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(59, 130, 246, 0.5);
+  }
+
+  .game-controls .btn-warning {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+  }
+
+  .game-controls .btn-warning:hover {
+    background: linear-gradient(135deg, #d97706, #b45309);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(245, 158, 11, 0.5);
+  }
+
+  .alert {
+    border-radius: 12px;
+    border: none;
+    font-weight: 600;
+    padding: 16px 20px;
+  }
+
+  .alert-info {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    color: #1e40af;
+  }
+
+  .alert-secondary {
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    color: #475569;
   }
 </style>
 {% endblock %}

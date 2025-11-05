@@ -203,46 +203,83 @@ section a:hover {
   background-color: #e3f2fd;
 }
 
-/* Input validation styles - Sudoku.com inspired */
+/* Enhanced Input validation styles - Modern Sudoku.com inspired */
 .cell-input.correct {
-  background-color: #e8f5e8 !important;
-  border-color: #4caf50 !important;
-  animation: correctPulse 0.5s ease-in-out;
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0) !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3) !important;
+  color: #065f46 !important;
+  animation: correctPulse 0.6s ease-in-out;
 }
 
 .cell-input.incorrect {
-  background-color: #ffebee !important;
-  border-color: #f44336 !important;
-  color: #d32f2f !important;
+  background: linear-gradient(135deg, #fee2e2, #fecaca) !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3) !important;
+  color: #dc2626 !important;
   font-weight: bold !important;
-  animation: incorrectShake 0.5s ease-in-out;
+  animation: incorrectShake 0.6s ease-in-out;
 }
 
-/* Permanent invalid state - like Sudoku.com */
+/* Permanent invalid state - Modern Sudoku.com style */
 .cell-input.invalid {
-  background-color: #ffcdd2 !important;
-  color: #c62828 !important;
-  border-color: #e57373 !important;
+  background: linear-gradient(135deg, #fecaca, #fca5a5) !important;
+  color: #b91c1c !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.4) !important;
   font-weight: bold !important;
 }
 
 @keyframes correctPulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
+  0% { 
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  50% { 
+    transform: scale(1.08);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.3);
+  }
+  100% { 
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
 }
 
 @keyframes incorrectShake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-3px); }
-  75% { transform: translateX(3px); }
+  0%, 100% { 
+    transform: translateX(0) rotate(0deg);
+  }
+  10%, 30%, 50%, 70% { 
+    transform: translateX(-4px) rotate(-1deg);
+  }
+  20%, 40%, 60% { 
+    transform: translateX(4px) rotate(1deg);
+  }
+  80% {
+    transform: translateX(-2px) rotate(-0.5deg);
+  }
+  90% {
+    transform: translateX(2px) rotate(0.5deg);
+  }
 }
 
-/* Highlight conflicting cells when invalid input is made - Sudoku.com style */
+/* Enhanced conflict highlighting - Modern Sudoku.com style */
 .cell-input.conflict {
-  background-color: #fff3e0 !important;
-  border-color: #ff9800 !important;
-  box-shadow: 0 0 0 1px #ff9800 !important;
+  background: linear-gradient(135deg, #fef3c7, #fde68a) !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4) !important;
+  animation: conflictPulse 1s ease-in-out infinite;
+}
+
+@keyframes conflictPulse {
+  0%, 100% { 
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.6);
+    transform: scale(1.02);
+  }
 }
 
 /* Hover effect for better user experience */
