@@ -13,11 +13,11 @@ if env_file.exists():
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-secret-change-in-production')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
 
-# For debugging: temporarily enable DEBUG in production to see error details
-# Remove this after fixing the issue
-if not DEBUG and os.environ.get('RENDER'):
-    DEBUG = True
-    print("DEBUG temporarily enabled for Render deployment debugging")
+# Enforce production security: DEBUG should NEVER be True in production
+if os.environ.get('RENDER') and DEBUG:
+    print("⚠️ WARNING: DEBUG is enabled on Render. Set DEBUG=0 in environment variables!")
+    # Force DEBUG off in production for security
+    DEBUG = False
 
 ALLOWED_HOSTS = [
     'localhost',
@@ -115,7 +115,17 @@ if DATABASE_URL:
     print(f"Using PostgreSQL database: {DATABASE_URL[:50]}...")  # Debug log
     try:
         DATABASES = {
-            'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
+            'default': dj_database_url.parse(
+                DATABASE_URL, 
+                conn_max_age=600,  # Keep connections alive for 10 minutes
+                ssl_require=True,
+                conn_health_checks=True,  # Enable connection health checks
+            )
+        }
+        # Add connection pooling configuration
+        DATABASES['default']['OPTIONS'] = {
+            'connect_timeout': 10,
+            'options': '-c statement_timeout=30000',  # 30 second query timeout
         }
     except Exception as e:
         print(f"Database configuration error: {e}")
@@ -173,6 +183,23 @@ LOGGING = {
 # Channels / Redis
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
 print(f"Using Redis URL: {REDIS_URL}")  # Debug log
+
+# Cache configuration using Redis
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'SOCKET_CONNECT_TIMEOUT': 5,
+            'SOCKET_TIMEOUT': 5,
+            'RETRY_ON_TIMEOUT': True,
+            'MAX_CONNECTIONS': 50,
+        },
+        'KEY_PREFIX': '2psudoku',
+        'TIMEOUT': 300,  # 5 minutes default
+    }
+}
 
 # Parse Redis URL for Channels
 import urllib.parse

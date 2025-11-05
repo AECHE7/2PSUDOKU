@@ -1,9 +1,11 @@
 import json
 import uuid
+import asyncio
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from django.contrib.auth.models import User
+from django.db import transaction
 from .models import GameSession, Move
 from .sudoku import SudokuPuzzle
 
@@ -494,12 +496,14 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def update_player_board(self, game_id, user_id, new_board):
-        game = GameSession.objects.get(id=game_id)
-        if game.player1 and game.player1.id == user_id:
-            game.board['player1_board'] = [list(row) for row in new_board]
-        else:
-            game.board['player2_board'] = [list(row) for row in new_board]
-        game.save()
+        """Update player's board with database transaction to prevent race conditions."""
+        with transaction.atomic():
+            game = GameSession.objects.select_for_update().get(id=game_id)
+            if game.player1 and game.player1.id == user_id:
+                game.board['player1_board'] = [list(row) for row in new_board]
+            else:
+                game.board['player2_board'] = [list(row) for row in new_board]
+            game.save()
 
     @database_sync_to_async
     def set_player_ready(self, game_id, user_id):

@@ -251,6 +251,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
   
+  let reconnectAttempts = 0;
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  
   ws.onclose = (event) => {
     console.log('WebSocket closed:', event.code, event.reason);
     isConnected = false;
@@ -260,12 +263,20 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       addMessage(`Disconnected from server (Code: ${event.code})`, 'error');
       
-      // Attempt to reconnect after a delay if not a normal closure
-      if (event.code !== 1000 && !gameFinished) {
+      // Implement exponential backoff for reconnection
+      if (event.code !== 1000 && !gameFinished && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        const backoffDelay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+        
+        addMessage(`Reconnecting in ${Math.floor(backoffDelay/1000)}s... (Attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`, 'info');
+        
         setTimeout(() => {
-          addMessage('Attempting to reconnect...', 'info');
-          location.reload(); // Simple reconnection strategy
-        }, 3000);
+          location.reload();
+        }, backoffDelay);
+      } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        addMessage('❌ Connection failed. Please refresh the page manually.', 'error');
+        // Show user-friendly error modal
+        showConnectionErrorModal();
       }
     }
   };
@@ -1671,6 +1682,35 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Enhanced error handling with retry
+  function showConnectionErrorModal() {
+    const modalHtml = `
+      <div class="modal fade show" id="connectionErrorModal" style="display: block;" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+              <h5 class="modal-title">Connection Lost</h5>
+            </div>
+            <div class="modal-body">
+              <p>Unable to maintain connection to the game server.</p>
+              <p>Your game progress may not be saved.</p>
+              <p><strong>Please check your internet connection and refresh the page.</strong></p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-primary" onclick="location.reload()">
+                Refresh Page
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="window.location.href='/'">
+                Return to Lobby
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-backdrop fade show"></div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+  }
+
   function handleConnectionError() {
     updateConnectionStatus(false);
     addMessage('Connection lost. Attempting to reconnect...', 'error');

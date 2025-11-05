@@ -3,13 +3,26 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.utils.html import escape
+from django.views.decorators.cache import cache_page
 import uuid
+import re
 from .models import GameSession
 from .sudoku import SudokuPuzzle
+from .decorators import rate_limit
 
+def sanitize_username(username):
+    """Sanitize username to prevent XSS and ensure valid characters."""
+    if not username:
+        return None
+    # Allow only alphanumeric, underscore, and hyphen
+    username = re.sub(r'[^\w\-]', '', username)
+    return escape(username.strip())[:150]  # Django's max username length
+
+@rate_limit(max_requests=5, window_seconds=300)  # 5 attempts per 5 minutes
 def register(request):
     if request.method == 'POST':
-        username = request.POST.get('username')
+        username = sanitize_username(request.POST.get('username', ''))
         password = request.POST.get('password')
         password_confirm = request.POST.get('password_confirm')
         
@@ -56,9 +69,10 @@ def register(request):
     })()
     return render(request, 'game/register.html', {'form': form})
 
+@rate_limit(max_requests=10, window_seconds=300)  # 10 attempts per 5 minutes
 def login_view(request):
     if request.method == 'POST':
-        username = request.POST.get('username')
+        username = sanitize_username(request.POST.get('username', ''))
         password = request.POST.get('password')
         
         # Validate inputs

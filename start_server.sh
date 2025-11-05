@@ -5,6 +5,15 @@ set -o pipefail
 echo "🚀 Starting production server with migrations..."
 echo "📅 Time: $(date)"
 
+# Validate environment variables first
+echo "🔍 Validating environment..."
+python validate_env.py
+
+if [ $? -ne 0 ]; then
+    echo "❌ Environment validation failed!"
+    exit 1
+fi
+
 # Run comprehensive race-mode migrations first
 echo "🗃️ Running comprehensive race-mode migrations..."
 python migrate_race_mode.py
