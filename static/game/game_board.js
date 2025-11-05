@@ -15,6 +15,13 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const messageDiv = document.getElementById('messages');
   let cellInputs = document.querySelectorAll('.cell-input');
+  
+  // UI State Management
+  let selectedCell = null;
+  let selectedNumber = null;
+  let mistakeCount = 0;
+  let startTime = null;
+  let elapsedInterval = null;
 
   // Helper function to safely send WebSocket messages
   let messageQueue = [];
@@ -96,9 +103,15 @@ document.addEventListener('DOMContentLoaded', () => {
       // Start timers and ensure both boards have the puzzle
       const startTime = new Date(data.start_time);
       startTimers(startTime);
+      startElapsedTimer();
+      
       if (data.puzzle) {
         updateBoardFromState(data.board || data.puzzle);
       }
+      
+      // Update game status
+      document.getElementById('game-status').innerHTML = '🏁 Racing';
+      
       addMessage('Race started — good luck!');
     } else if (data.type === 'race_finished') {
       handleGameFinished(data);
@@ -120,11 +133,16 @@ document.addEventListener('DOMContentLoaded', () => {
     addMessage('WebSocket error', 'error');
   };
   
-  // Handle cell input
+  // Enhanced Cell Input Handling
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('cell-input') && !e.target.disabled) {
+      selectCell(e.target);
+    }
+  });
+
   document.addEventListener('change', (e) => {
     if (!e.target.classList.contains('cell-input')) return;
     if (e.target.disabled) return;
-    // Race mode: allow simultaneous input
     
     const cell = e.target.closest('.sudoku-cell');
     if (!cell) return;
@@ -134,21 +152,71 @@ document.addEventListener('DOMContentLoaded', () => {
     const value = parseInt(e.target.value);
     
     if (value && value >= 1 && value <= 9) {
+      // Validate move immediately
+      const isValidMove = validateMove(row, col, value);
+      
+      if (isValidMove) {
+        e.target.classList.add('correct');
+        e.target.classList.remove('incorrect');
+        setTimeout(() => e.target.classList.remove('correct'), 500);
+      } else {
+        e.target.classList.add('incorrect');
+        e.target.classList.remove('correct');
+        mistakeCount++;
+        updateMistakeCount();
+        setTimeout(() => e.target.classList.remove('incorrect'), 500);
+      }
+
       safeSend({
         type: 'move',
         row: row,
         col: col,
         value: value,
       });
+      
+      updateCellsFilledCount();
+      highlightRelatedCells(row, col, value);
+      
     } else if (e.target.value === '') {
-      // Allow clearing, but don't send empty move
+      updateCellsFilledCount();
+      clearHighlights();
       return;
     }
 
     // After each input, check if puzzle is complete and auto-submit
     if (isLocalBoardComplete() && isLocalBoardValid()) {
-      // Auto-submit the completed puzzle
       autoSubmitSolution();
+    }
+  });
+
+  // Number Pad Integration
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('number-btn')) {
+      const number = e.target.dataset.number;
+      selectNumber(number);
+      
+      if (selectedCell && !selectedCell.disabled) {
+        selectedCell.value = number;
+        selectedCell.dispatchEvent(new Event('change'));
+      }
+    }
+  });
+
+  // Keyboard Support
+  document.addEventListener('keydown', (e) => {
+    if (selectedCell && !selectedCell.disabled) {
+      if (e.key >= '1' && e.key <= '9') {
+        selectedCell.value = e.key;
+        selectedCell.dispatchEvent(new Event('change'));
+        e.preventDefault();
+      } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        selectedCell.value = '';
+        selectedCell.dispatchEvent(new Event('change'));
+        e.preventDefault();
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        navigateGrid(e.key);
+        e.preventDefault();
+      }
     }
   });
 
@@ -321,7 +389,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleGameFinished(data) {
     gameFinished = true;
     stopTimers();
+    stopElapsedTimer();
     disableAllInputs();
+    clearHighlights();
+    
+    // Update game status
+    document.getElementById('game-status').innerHTML = '🏆 Finished';
     
     // Hide race controls
     const raceControls = document.querySelector('.race-controls');
@@ -410,6 +483,185 @@ document.addEventListener('DOMContentLoaded', () => {
       window.location.href = `/game/${data.game_code}/`;
     }, 1500);
   }
+
+  // Interactive UI Functions
+  function selectCell(cellInput) {
+    // Remove previous selection
+    if (selectedCell) {
+      selectedCell.classList.remove('selected');
+    }
+    
+    // Select new cell
+    selectedCell = cellInput;
+    selectedCell.classList.add('selected');
+    
+    // Highlight related cells
+    const row = parseInt(selectedCell.dataset.row);
+    const col = parseInt(selectedCell.dataset.col);
+    const value = selectedCell.value;
+    
+    clearHighlights();
+    highlightRelatedCells(row, col, value);
+  }
+
+  function selectNumber(number) {
+    // Remove previous number selection
+    document.querySelectorAll('.number-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    
+    // Select new number
+    const numberBtn = document.querySelector(`[data-number="${number}"]`);
+    if (numberBtn) {
+      numberBtn.classList.add('active');
+      selectedNumber = number;
+    }
+  }
+
+  function highlightRelatedCells(row, col, value) {
+    const cells = document.querySelectorAll('.cell-input');
+    
+    cells.forEach((cell, index) => {
+      const cellRow = Math.floor(index / 9);
+      const cellCol = index % 9;
+      
+      // Highlight same row, column, or 3x3 box
+      if (cellRow === row || cellCol === col || 
+          (Math.floor(cellRow / 3) === Math.floor(row / 3) && 
+           Math.floor(cellCol / 3) === Math.floor(col / 3))) {
+        cell.classList.add('highlighted');
+      }
+      
+      // Highlight cells with same value
+      if (value && cell.value === value) {
+        cell.classList.add('highlighted');
+      }
+    });
+  }
+
+  function clearHighlights() {
+    document.querySelectorAll('.cell-input').forEach(cell => {
+      cell.classList.remove('highlighted');
+    });
+  }
+
+  function navigateGrid(key) {
+    if (!selectedCell) return;
+    
+    const currentRow = parseInt(selectedCell.dataset.row);
+    const currentCol = parseInt(selectedCell.dataset.col);
+    let newRow = currentRow;
+    let newCol = currentCol;
+    
+    switch (key) {
+      case 'ArrowUp': newRow = Math.max(0, currentRow - 1); break;
+      case 'ArrowDown': newRow = Math.min(8, currentRow + 1); break;
+      case 'ArrowLeft': newCol = Math.max(0, currentCol - 1); break;
+      case 'ArrowRight': newCol = Math.min(8, currentCol + 1); break;
+    }
+    
+    const newCell = document.querySelector(`[data-row="${newRow}"][data-col="${newCol}"]`);
+    if (newCell && !newCell.disabled) {
+      selectCell(newCell);
+      newCell.focus();
+    }
+  }
+
+  function validateMove(row, col, value) {
+    // Basic client-side validation
+    const cells = document.querySelectorAll('.cell-input');
+    
+    // Check row
+    for (let c = 0; c < 9; c++) {
+      if (c !== col) {
+        const cell = cells[row * 9 + c];
+        if (cell.value == value) return false;
+      }
+    }
+    
+    // Check column
+    for (let r = 0; r < 9; r++) {
+      if (r !== row) {
+        const cell = cells[r * 9 + col];
+        if (cell.value == value) return false;
+      }
+    }
+    
+    // Check 3x3 box
+    const boxRow = Math.floor(row / 3) * 3;
+    const boxCol = Math.floor(col / 3) * 3;
+    
+    for (let r = boxRow; r < boxRow + 3; r++) {
+      for (let c = boxCol; c < boxCol + 3; c++) {
+        if (r !== row || c !== col) {
+          const cell = cells[r * 9 + c];
+          if (cell.value == value) return false;
+        }
+      }
+    }
+    
+    return true;
+  }
+
+  // Statistics Functions
+  function updateMistakeCount() {
+    document.getElementById('mistake-count').textContent = mistakeCount;
+  }
+
+  function updateCellsFilledCount() {
+    const filledCells = document.querySelectorAll('.cell-input[value]:not([value=""])').length;
+    document.getElementById('cells-filled').textContent = `${filledCells}/81`;
+  }
+
+  function startElapsedTimer() {
+    if (elapsedInterval) clearInterval(elapsedInterval);
+    
+    startTime = new Date();
+    elapsedInterval = setInterval(() => {
+      if (startTime) {
+        const elapsed = new Date() - startTime;
+        const minutes = Math.floor(elapsed / 60000);
+        const seconds = Math.floor((elapsed % 60000) / 1000);
+        document.getElementById('elapsed-time').textContent = 
+          `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+    }, 1000);
+  }
+
+  function stopElapsedTimer() {
+    if (elapsedInterval) {
+      clearInterval(elapsedInterval);
+      elapsedInterval = null;
+    }
+  }
+
+  // Initialize UI
+  function initializeUI() {
+    updateCellsFilledCount();
+    updateMistakeCount();
+    
+    // Add click handlers for navigation buttons
+    window.copyGameCode = function() {
+      navigator.clipboard.writeText(gameCode).then(() => {
+        addMessage('Game code copied to clipboard!', 'success');
+      });
+    };
+    
+    window.showRules = function() {
+      addMessage('Rules: First player to complete the Sudoku puzzle wins! Use number pad or keyboard to fill cells.', 'info');
+    };
+    
+    window.toggleFullscreen = function() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        document.exitFullscreen();
+      }
+    };
+  }
+
+  // Initialize on load
+  initializeUI();
   
   function addMessage(text, className = '') {
     const div = document.createElement('div');
