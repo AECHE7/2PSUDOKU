@@ -30,20 +30,26 @@ def rate_limit(max_requests=5, window_seconds=300):
             # Create cache key
             cache_key = f'rate_limit:{view_func.__name__}:{ip}'
             
-            # Get current request count
-            requests = cache.get(cache_key, 0)
-            
-            if requests >= max_requests:
-                # Rate limit exceeded
-                retry_after = cache.ttl(cache_key)
-                return HttpResponse(
-                    f'Rate limit exceeded. Please try again in {retry_after} seconds.',
-                    status=429,
-                    headers={'Retry-After': str(retry_after)}
-                )
-            
-            # Increment request count
-            cache.set(cache_key, requests + 1, window_seconds)
+            try:
+                # Get current request count
+                requests = cache.get(cache_key, 0)
+                
+                if requests >= max_requests:
+                    # Rate limit exceeded
+                    retry_after = cache.ttl(cache_key) if hasattr(cache, 'ttl') else window_seconds
+                    return HttpResponse(
+                        f'Rate limit exceeded. Please try again in {retry_after} seconds.',
+                        status=429,
+                        headers={'Retry-After': str(retry_after)}
+                    )
+                
+                # Increment request count
+                cache.set(cache_key, requests + 1, window_seconds)
+                
+            except Exception as e:
+                # If cache fails (Redis down), log it but don't block the request
+                print(f"⚠️ Rate limiting cache error: {e}")
+                # Continue without rate limiting rather than blocking users
             
             return view_func(request, *args, **kwargs)
         

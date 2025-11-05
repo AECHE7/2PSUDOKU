@@ -185,21 +185,34 @@ REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
 print(f"Using Redis URL: {REDIS_URL}")  # Debug log
 
 # Cache configuration using Redis
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': REDIS_URL,
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'SOCKET_CONNECT_TIMEOUT': 5,
-            'SOCKET_TIMEOUT': 5,
-            'RETRY_ON_TIMEOUT': True,
-            'MAX_CONNECTIONS': 50,
-        },
-        'KEY_PREFIX': '2psudoku',
-        'TIMEOUT': 300,  # 5 minutes default
+# Use django-redis in production for better performance and features
+# Falls back to in-memory cache in development if django-redis is not available
+try:
+    import django_redis
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
+                'RETRY_ON_TIMEOUT': True,
+                'MAX_CONNECTIONS': 50,
+            },
+            'KEY_PREFIX': '2psudoku',
+            'TIMEOUT': 300,  # 5 minutes default
+        }
     }
-}
+    print("✅ Using django-redis cache backend")
+except ImportError:
+    # Fallback to dummy cache in development if django-redis not installed
+    print("⚠️ django-redis not found, using dummy cache (development only)")
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
+        }
+    }
 
 # Parse Redis URL for Channels
 import urllib.parse

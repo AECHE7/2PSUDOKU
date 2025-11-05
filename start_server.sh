@@ -25,6 +25,16 @@ else
     exit 1
 fi
 
+# Collect static files
+echo "📦 Collecting static files..."
+python manage.py collectstatic --noinput --clear
+
+if [ $? -eq 0 ]; then
+    echo "✅ Static files collected successfully!"
+else
+    echo "⚠️ Static files collection failed, continuing anyway..."
+fi
+
 # Start the web server
 echo "🌐 Starting Daphne ASGI server..."
 exec daphne -p $PORT -b 0.0.0.0 config.asgi:application
