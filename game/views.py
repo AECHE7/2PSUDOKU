@@ -12,25 +12,91 @@ def register(request):
         username = request.POST.get('username')
         password = request.POST.get('password')
         password_confirm = request.POST.get('password_confirm')
-        if password != password_confirm:
-            return render(request, 'game/register.html', {'error': 'Passwords do not match'})
-        if User.objects.filter(username=username).exists():
-            return render(request, 'game/register.html', {'error': 'Username already exists'})
+        
+        # Validate inputs
+        errors = {}
+        if not username:
+            errors['username'] = ['Username is required']
+        elif len(username) < 3:
+            errors['username'] = ['Username must be at least 3 characters long']
+        elif User.objects.filter(username=username).exists():
+            errors['username'] = ['Username already exists']
+            
+        if not password:
+            errors['password'] = ['Password is required']
+        elif len(password) < 6:
+            errors['password'] = ['Password must be at least 6 characters long']
+            
+        if not password_confirm:
+            errors['password_confirm'] = ['Please confirm your password']
+        elif password != password_confirm:
+            errors['password_confirm'] = ['Passwords do not match']
+            
+        if errors:
+            # Create a form-like object for template compatibility
+            form = type('MockForm', (), {
+                'errors': errors,
+                'username': type('Field', (), {'errors': errors.get('username', []), 'value': username or ''})(),
+                'password': type('Field', (), {'errors': errors.get('password', []), 'value': ''})(),
+                'password_confirm': type('Field', (), {'errors': errors.get('password_confirm', []), 'value': ''})(),
+            })()
+            return render(request, 'game/register.html', {'form': form})
+        
+        # Create user and login
         user = User.objects.create_user(username=username, password=password)
         login(request, user)
         return redirect('index')
-    return render(request, 'game/register.html', {})
+    
+    # Create empty form for GET request
+    form = type('MockForm', (), {
+        'errors': {},
+        'username': type('Field', (), {'errors': [], 'value': ''})(),
+        'password': type('Field', (), {'errors': [], 'value': ''})(),
+        'password_confirm': type('Field', (), {'errors': [], 'value': ''})(),
+    })()
+    return render(request, 'game/register.html', {'form': form})
 
 def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
+        
+        # Validate inputs
+        errors = {}
+        if not username:
+            errors['username'] = ['Username is required']
+        if not password:
+            errors['password'] = ['Password is required']
+            
+        if errors:
+            # Create a form-like object for template compatibility
+            form = type('MockForm', (), {
+                'errors': errors,
+                'username': type('Field', (), {'errors': errors.get('username', []), 'value': username})(),
+                'password': type('Field', (), {'errors': errors.get('password', []), 'value': ''})(),
+            })()
+            return render(request, 'game/login.html', {'form': form})
+        
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
             return redirect('index')
-        return render(request, 'game/login.html', {'error': 'Invalid credentials'})
-    return render(request, 'game/login.html', {})
+        else:
+            # Create error for invalid credentials
+            form = type('MockForm', (), {
+                'errors': {'__all__': ['Invalid username or password']},
+                'username': type('Field', (), {'errors': [], 'value': username})(),
+                'password': type('Field', (), {'errors': [], 'value': ''})(),
+            })()
+            return render(request, 'game/login.html', {'form': form})
+    
+    # Create empty form for GET request
+    form = type('MockForm', (), {
+        'errors': {},
+        'username': type('Field', (), {'errors': [], 'value': ''})(),
+        'password': type('Field', (), {'errors': [], 'value': ''})(),
+    })()
+    return render(request, 'game/login.html', {'form': form})
 
 def logout_view(request):
     logout(request)

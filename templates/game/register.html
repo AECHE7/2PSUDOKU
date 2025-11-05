@@ -4,74 +4,171 @@
 
 {% block extra_css %}
 <style>
+  .auth-page {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    padding: 40px 20px;
+  }
+
   .auth-container {
-    max-width: 400px;
-    margin: 60px auto;
-    padding: 0 20px;
+    max-width: 480px;
+    width: 100%;
+    margin: 0 auto;
   }
 
   .auth-card {
     background: white;
-    border-radius: 12px;
-    padding: 40px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-    text-align: center;
+    border-radius: 20px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
   }
 
   .auth-header {
-    margin-bottom: 30px;
+    padding: 48px 40px 32px;
+    text-align: center;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    position: relative;
   }
 
-  .auth-icon {
-    font-size: 3rem;
-    color: #4caf50;
-    margin-bottom: 20px;
+  .auth-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .auth-logo {
+    width: 72px;
+    height: 72px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    font-size: 2rem;
+    backdrop-filter: blur(10px);
+    position: relative;
+    z-index: 1;
+  }
+
+  .auth-title {
+    margin-bottom: 8px;
+    font-weight: 700;
+    font-size: 2rem;
+    line-height: 1.2;
+    position: relative;
+    z-index: 1;
+  }
+
+  .auth-subtitle {
+    opacity: 0.9;
+    font-size: 1rem;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .auth-body {
+    padding: 40px;
   }
 
   .form-group {
-    margin-bottom: 20px;
-    text-align: left;
+    margin-bottom: 24px;
+  }
+
+  .form-label {
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 8px;
+    display: block;
   }
 
   .form-control {
-    border-radius: 8px;
-    border: 2px solid #e0e0e0;
-    padding: 12px 16px;
+    width: 100%;
+    padding: 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
     font-size: 1rem;
-    transition: border-color 0.3s ease;
+    transition: all 0.2s ease;
+    background: #f9fafb;
   }
 
   .form-control:focus {
-    border-color: #4caf50;
-    box-shadow: 0 0 0 0.2rem rgba(76, 175, 80, 0.25);
+    outline: none;
+    border-color: #10b981;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+  }
+
+  .form-control.is-invalid {
+    border-color: #ef4444;
+    background-color: #fef2f2;
+  }
+
+  .invalid-feedback {
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-top: 6px;
+  }
+
+  .form-text {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin-top: 6px;
   }
 
   .auth-btn {
-    background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
-    border: none;
-    color: white;
-    padding: 12px 30px;
-    font-size: 1.1rem;
-    font-weight: bold;
-    border-radius: 25px;
     width: 100%;
-    transition: all 0.3s ease;
-    margin: 20px 0;
+    padding: 16px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 24px;
   }
 
   .auth-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+  }
+
+  .auth-footer {
+    text-align: center;
+    padding-top: 24px;
+    border-top: 1px solid #e5e7eb;
   }
 
   .auth-link {
-    color: #2196f3;
+    color: #10b981;
     text-decoration: none;
-    font-weight: 500;
+    font-weight: 600;
   }
 
   .auth-link:hover {
+    color: #059669;
     text-decoration: underline;
+  }
+
+  .error-message {
+    background: #fef2f2;
+    color: #991b1b;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #fecaca;
   }
 
   .divider {
@@ -123,69 +220,98 @@
 {% endblock %}
 
 {% block content %}
-<div class="auth-container">
-  <div class="auth-card">
-    <div class="auth-header">
-      <div class="auth-icon">
-        <i class="fas fa-user-plus"></i>
-      </div>
-      <h2>Join the Race!</h2>
-      <p class="text-muted">Create your account to start competing</p>
-    </div>
-
-    {% if error %}
-      <div class="alert alert-danger" role="alert">
-        <i class="fas fa-exclamation-triangle"></i>
-        {{ error }}
-      </div>
-    {% endif %}
-
-    <form method="post" id="register-form">
-      {% csrf_token %}
-      
-      <div class="form-group">
-        <label for="username">Username</label>
-        <input type="text" 
-               class="form-control" 
-               id="username"
-               name="username" 
-               placeholder="Choose a unique username" 
-               required
-               minlength="3"
-               maxlength="20"
-               autocomplete="username">
-        <small class="form-text text-muted">3-20 characters, letters and numbers only</small>
+<div class="auth-page">
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="auth-logo">
+          <i class="fas fa-user-plus"></i>
+        </div>
+        <h1 class="auth-title">Join the Race!</h1>
+        <p class="auth-subtitle">Create your account to start competing in Sudoku races</p>
       </div>
 
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" 
-               class="form-control" 
-               id="password"
-               name="password" 
-               placeholder="Create a strong password" 
-               required
-               minlength="6"
-               autocomplete="new-password">
-        <div class="password-strength" id="password-strength"></div>
-      </div>
+      <div class="auth-body">
+        {% if form.errors %}
+          <div class="error-message">
+            <strong>Please correct the errors below:</strong>
+            <ul class="mb-0 mt-2">
+              {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                  <li>{{ error }}</li>
+                {% endfor %}
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
 
-      <div class="form-group">
-        <label for="password_confirm">Confirm Password</label>
-        <input type="password" 
-               class="form-control" 
-               id="password_confirm"
-               name="password_confirm" 
-               placeholder="Confirm your password" 
-               required
-               autocomplete="new-password">
-        <div id="password-match" class="password-strength"></div>
-      </div>
+        <form method="post" id="register-form" class="auth-form">
+          {% csrf_token %}
+          
+          <div class="form-group">
+            <label for="id_username" class="form-label">Username</label>
+            <input type="text" 
+                   name="username" 
+                   id="id_username" 
+                   class="form-control {% if form.username.errors %}is-invalid{% endif %}"
+                   value="{{ form.username.value|default:'' }}"
+                   placeholder="Choose a unique username"
+                   required
+                   minlength="3"
+                   maxlength="20">
+            {% if form.username.errors %}
+              <div class="invalid-feedback">
+                {% for error in form.username.errors %}{{ error }}{% endfor %}
+              </div>
+            {% else %}
+              <small class="form-text">3-20 characters, letters and numbers recommended</small>
+            {% endif %}
+          </div>
 
-      <button type="submit" class="auth-btn">
-        <i class="fas fa-rocket"></i> Start Racing
-      </button>
-    </form>
+          <div class="form-group">
+            <label for="id_password" class="form-label">Password</label>
+            <input type="password" 
+                   name="password" 
+                   id="id_password" 
+                   class="form-control {% if form.password.errors %}is-invalid{% endif %}"
+                   placeholder="Create a strong password"
+                   required
+                   minlength="6">
+            {% if form.password.errors %}
+              <div class="invalid-feedback">
+                {% for error in form.password.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+            <div class="password-strength" id="password-strength"></div>
+          </div>
+
+          <div class="form-group">
+            <label for="id_password_confirm" class="form-label">Confirm Password</label>
+            <input type="password" 
+                   name="password_confirm" 
+                   id="id_password_confirm" 
+                   class="form-control {% if form.password_confirm.errors %}is-invalid{% endif %}"
+                   placeholder="Confirm your password"
+                   required>
+            {% if form.password_confirm.errors %}
+              <div class="invalid-feedback">
+                {% for error in form.password_confirm.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+            <div id="password-match" class="password-strength"></div>
+          </div>
+
+          <button type="submit" class="auth-btn">
+            <i class="fas fa-rocket me-2"></i>Start Racing
+          </button>
+
+          <div class="auth-footer">
+            <p class="mb-0">
+              Already have an account? 
+              <a href="{% url 'login' %}" class="auth-link">Sign in here</a>
+            </p>
+          </div>
+        </form>
 
     <div class="divider">
       <span>Already racing?</span>
