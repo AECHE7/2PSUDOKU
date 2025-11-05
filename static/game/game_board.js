@@ -141,6 +141,18 @@ document.addEventListener('DOMContentLoaded', () => {
       handleNewGameCreated(data);
     } else if (data.error) {
       addMessage(`Error: ${data.error}`, 'error');
+      
+      // If completion failed, reset game state so player can try again
+      if (data.error.includes('not a valid completed solution')) {
+        gameFinished = false;
+        addMessage('Please check your solution and try again.', 'info');
+        
+        // Re-enable finish button
+        const finishBtn = document.getElementById('finish-btn');
+        if (finishBtn) {
+          finishBtn.style.display = 'inline-block';
+        }
+      }
     }
   };
   
