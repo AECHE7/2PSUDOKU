@@ -105,14 +105,25 @@ class GameConsumer(AsyncWebsocketConsumer):
             game_info = await self.get_game_player_info(game_id)
         elif not game_info['player2_id'] and game_info['player1_id'] != self.user.id:
             # Add second player and auto-start race
+            print("="*60)
             print(f"🥈 Adding {self.user.username} as Player 2 - AUTO-STARTING RACE!")
+            print("="*60)
             await self.add_player2(game_id, self.user.id)
             await self.start_game(game_id)
             
             # Auto-start the race when second player joins
+            print("⏰ Setting start time...")
             start_iso = await self.set_start_time(game_id)
+            print(f"⏰ Start time set: {start_iso}")
+            
+            print("🧩 Getting puzzle...")
             puzzle = await self.get_puzzle(game_id)
-            print(f"🏁 Broadcasting race_started message to group {self.group_name}")
+            print(f"🧩 Puzzle retrieved: {len(puzzle) if puzzle else 0} rows")
+            
+            print(f"📡 Broadcasting race_started message to group {self.group_name}")
+            print(f"📅 Start time: {start_iso}")
+            print("="*60)
+            
             await self.channel_layer.group_send(
                 self.group_name,
                 {
@@ -121,6 +132,8 @@ class GameConsumer(AsyncWebsocketConsumer):
                     'puzzle': puzzle,
                 }
             )
+            print("✅ race_started message sent to channel layer")
+            print("="*60)
             
             # Refresh game info after adding player
             game_info = await self.get_game_player_info(game_id)
@@ -247,11 +260,18 @@ class GameConsumer(AsyncWebsocketConsumer):
         })
 
     async def race_started(self, event):
+        print("="*60)
+        print("📨 race_started event handler called!")
+        print(f"📨 Event data: {event}")
+        print("="*60)
         await self.safe_send({
             'type': 'race_started',
             'start_time': event.get('start_time'),
             'puzzle': event.get('puzzle'),
+            'board': event.get('puzzle'),  # Ensure board is sent
         })
+        print("✅ race_started message sent to client via WebSocket")
+        print("="*60)
 
     async def race_finished(self, event):
         await self.safe_send({

@@ -167,8 +167,16 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (data.type === 'board') {
       updateBoardFromState(data.board);
     } else if (data.type === 'race_started') {
+      console.log('');
+      console.log('═══════════════════════════════════════');
       console.log('🏁 RACE STARTED MESSAGE RECEIVED!');
-      console.log('📊 Race data:', JSON.stringify(data, null, 2));
+      console.log('═══════════════════════════════════════');
+      console.log('📊 Full race data:', JSON.stringify(data, null, 2));
+      console.log('📅 Start time from server:', data.start_time);
+      console.log('📅 Start time type:', typeof data.start_time);
+      console.log('⏰ Current time:', new Date().toISOString());
+      console.log('═══════════════════════════════════════');
+      console.log('');
       
       // Initialize game statistics
       gameStatistics.startTime = data.start_time;
@@ -183,15 +191,17 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Start timers and ensure both boards have the puzzle
       const startTime = new Date(data.start_time);
-      console.log('⏰ Starting timers with start time:', startTime);
-      console.log('⏰ Current time:', new Date());
+      console.log('⏰ Parsed start time as Date:', startTime);
+      console.log('⏰ Start time is valid?', !isNaN(startTime.getTime()));
       
       // Force timer start
-      console.log('🔄 Calling startTimers...');
+      console.log('🔄 About to call startTimers()...');
       startTimers(startTime);
+      console.log('✅ startTimers() call completed');
       
-      console.log('🔄 Calling startElapsedTimer...');
+      console.log('🔄 About to call startElapsedTimer()...');
       startElapsedTimer();
+      console.log('✅ startElapsedTimer() call completed');
       
       if (data.puzzle) {
         console.log('🧩 Updating board with puzzle data');
@@ -213,13 +223,24 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Force a UI refresh
       setTimeout(() => {
-        console.log('🔄 Forcing UI refresh...');
-        const timerEl = document.getElementById('elapsed-time');
-        if (timerEl) {
-          console.log('⏰ Timer element found:', timerEl.textContent);
+        console.log('');
+        console.log('─────────────────────────────────');
+        console.log('🔄 UI Refresh Check (1 second later)');
+        console.log('─────────────────────────────────');
+        const timer1El = document.getElementById('player1-timer');
+        const timer2El = document.getElementById('player2-timer');
+        if (timer1El && timer2El) {
+          console.log('✅ Timer1 element:', timer1El);
+          console.log('✅ Timer1 text:', timer1El.textContent);
+          console.log('✅ Timer2 element:', timer2El);
+          console.log('✅ Timer2 text:', timer2El.textContent);
         } else {
-          console.error('❌ Timer element not found!');
+          console.error('❌ Timer elements still not found after 1 second!');
+          console.error('❌ timer1El:', timer1El);
+          console.error('❌ timer2El:', timer2El);
         }
+        console.log('─────────────────────────────────');
+        console.log('');
       }, 1000);
     } else if (data.type === 'race_finished') {
       handleGameFinished(data);
@@ -550,26 +571,39 @@ document.addEventListener('DOMContentLoaded', () => {
   let raceStartTime = null;
 
   function startTimers(startTime) {
+    console.log('🔥 startTimers() CALLED!');
+    console.log('📅 Start time received:', startTime);
+    console.log('📅 Start time type:', typeof startTime);
+    console.log('📅 Start time value:', startTime);
+    
     Logger.info(`Starting timers from: ${startTime}`);
     raceStartTime = startTime;
     
     // Function to check and start timer
     const initTimer = () => {
+      console.log('🔍 Attempting to find timer elements...');
       const timer1 = document.getElementById('player1-timer');
       const timer2 = document.getElementById('player2-timer');
       
+      console.log('🔍 player1-timer element:', timer1);
+      console.log('🔍 player2-timer element:', timer2);
+      
       if (!timer1 || !timer2) {
+        console.warn('⚠️ Timer elements not found yet, retrying...');
         Logger.warn('Timer elements not found yet, retrying...');
         return false;
       }
       
+      console.log('✅ Timer elements found!');
       Logger.info('Timer elements found, starting interval');
       
       // Clear any existing interval
       if (timerInterval) {
+        console.log('🔄 Clearing existing interval');
         clearInterval(timerInterval);
       }
       
+      console.log('⏰ Creating new timer interval...');
       timerInterval = setInterval(() => {
         const now = new Date();
         const elapsed = Math.max(0, Math.floor((now - raceStartTime) / 1000));
@@ -578,26 +612,35 @@ document.addEventListener('DOMContentLoaded', () => {
         
         timer1.textContent = `${mm}:${ss}`;
         timer2.textContent = `${mm}:${ss}`;
+        console.log(`⏰ Timer updated: ${mm}:${ss}`);
       }, 500);
       
+      console.log('✅ Timer interval started successfully!');
       Logger.info('Timer interval started successfully');
       return true;
     };
     
     // Try immediately first
+    console.log('🚀 Trying immediate timer initialization...');
     if (initTimer()) {
+      console.log('✅ Timer initialized immediately!');
       return;
     }
     
     // If not ready, retry with increasing delays
+    console.log('⏳ Timer elements not ready, starting retry mechanism...');
     const retryDelays = [100, 250, 500, 1000];
     let retryIndex = 0;
     
     const retryTimer = setInterval(() => {
+      console.log(`🔄 Retry attempt ${retryIndex + 1}/${retryDelays.length}`);
       if (initTimer() || retryIndex >= retryDelays.length) {
         clearInterval(retryTimer);
         if (retryIndex >= retryDelays.length) {
+          console.error('❌ Failed to start timer after all retries');
           Logger.error('Failed to start timer after all retries');
+        } else {
+          console.log('✅ Timer initialized on retry!');
         }
       } else {
         retryIndex++;
