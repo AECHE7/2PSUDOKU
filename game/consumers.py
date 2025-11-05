@@ -203,23 +203,42 @@ class GameConsumer(AsyncWebsocketConsumer):
         col = data.get('col')
         value = data.get('value')
         
+        print(f"🎯 Move request: Player {self.user.username} → ({row},{col}) = {value}")
+        
         if not all(isinstance(x, int) for x in [row, col, value]):
+            print(f"❌ Invalid move data types!")
             await self.safe_send({'error': 'Invalid move data'})
             return
         
         # Resolve game id first
         game_id = await self.get_game_id()
         if not game_id:
+            print(f"❌ Game not found!")
             await self.safe_send({'error': 'Game not found'})
             return
 
         # Race mode: both players can play simultaneously. Fetch the player's board.
         current_board = await self.get_player_board(game_id, self.user.id)
         puzzle = SudokuPuzzle.from_dict({'board': current_board})
+        
+        # Validate the move
         if not puzzle.is_valid_placement(row, col, value):
-            await self.safe_send({'error': 'Invalid move'})
+            print(f"❌ Invalid move rejected: ({row},{col}) = {value}")
+            print(f"   Current board state at that position: {current_board[row][col]}")
+            # Check why it's invalid
+            if value in current_board[row]:
+                print(f"   ❌ Number {value} already in row {row}")
+            if value in [current_board[r][col] for r in range(9)]:
+                print(f"   ❌ Number {value} already in column {col}")
+            box_row = (row // 3) * 3
+            box_col = (col // 3) * 3
+            box_values = [current_board[r][c] for r in range(box_row, box_row + 3) for c in range(box_col, box_col + 3)]
+            if value in box_values:
+                print(f"   ❌ Number {value} already in 3x3 box")
+            await self.safe_send({'error': 'Invalid move - conflicts with existing numbers'})
             return
         
+        print(f"✅ Move valid, updating board...")
         # Record the move
         move = await self.create_move(game_id, self.user.id, row, col, value)
         # Update player's board state
