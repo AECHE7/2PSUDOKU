@@ -86,17 +86,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.type === 'notification') {
       addMessage(data.message);
     } else if (data.type === 'game_state') {
-      // Initial state: puzzle + player's board
-      updateBoardFromState(data.board);
+      // Initial state: puzzle + both player boards
+      updateBoardFromState(data.board, false); // Player's board
+      if (data.opponent_board) {
+        updateBoardFromState(data.opponent_board, true); // Opponent's board
+      }
       addMessage(`Room: players ${data.player1} vs ${data.player2 || 'Waiting...'}`);
-      // If race already started, start timer
+      // If race already started, start timers
       if (data.start_time) {
         startTimers(new Date(data.start_time));
+        startElapsedTimer();
       }
     } else if (data.type === 'move') {
+      // Show move in chat
       addMessage(`${data.username} placed ${data.value} at row ${data.row + 1}, col ${data.col + 1}`);
-      // Update appropriate player's board cell
-      updateCellDisplay(data.row, data.col, data.value, data.player_id);
+      
+      // Update the appropriate board in real-time
+      if (data.player_id == playerId) {
+        // Update player's own board (shouldn't be needed but for consistency)
+        updatePlayerBoard(data.row, data.col, data.value);
+      } else {
+        // Update opponent's board display
+        updateOpponentBoard(data.row, data.col, data.value);
+        addMessage(`${data.username} is making progress...`, 'info');
+      }
     } else if (data.type === 'board') {
       updateBoardFromState(data.board);
     } else if (data.type === 'race_started') {
@@ -115,6 +128,15 @@ document.addEventListener('DOMContentLoaded', () => {
       addMessage('Race started — good luck!');
     } else if (data.type === 'race_finished') {
       handleGameFinished(data);
+    } else if (data.type === 'game_progress_update') {
+      // Real-time board state update
+      if (data.player_id != playerId) {
+        // Update opponent's board with their current progress
+        updateBoardFromState(data.board, true);
+      }
+    } else if (data.type === 'player_ready_status') {
+      // Live status updates
+      handlePlayerReadyStatus(data);
     } else if (data.type === 'new_game_created') {
       handleNewGameCreated(data);
     } else if (data.error) {
@@ -136,7 +158,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Enhanced Cell Input Handling
   document.addEventListener('click', (e) => {
     if (e.target.classList.contains('cell-input') && !e.target.disabled) {
-      selectCell(e.target);
+      // Only allow selection on player's own board
+      const playerBoard = document.getElementById('player-board');
+      if (playerBoard.contains(e.target)) {
+        selectCell(e.target);
+      }
     }
   });
 
@@ -289,7 +315,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   function isLocalBoardComplete() {
-    const inputs = document.querySelectorAll('.cell-input');
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return false;
+    const inputs = playerBoard.querySelectorAll('.cell-input');
     for (const input of inputs) {
       if (!input.value || input.value === '') return false;
     }
@@ -298,9 +326,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function isLocalBoardValid() {
     // Basic validation - check for duplicates in rows, columns, and boxes
-    const inputs = document.querySelectorAll('.cell-input');
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return false;
+    const inputs = playerBoard.querySelectorAll('.cell-input');
     const board = [];
-    
+
     // Convert inputs to 9x9 array
     for (let row = 0; row < 9; row++) {
       board[row] = [];
@@ -309,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
         board[row][col] = parseInt(input.value) || 0;
       }
     }
-    
+
     return validateSudokuBoard(board);
   }
 
@@ -379,7 +409,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function disableAllInputs() {
-    const inputs = document.querySelectorAll('.cell-input');
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return;
+    const inputs = playerBoard.querySelectorAll('.cell-input');
     inputs.forEach(input => {
       input.disabled = true;
       input.classList.add('game-finished');
@@ -519,19 +551,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function highlightRelatedCells(row, col, value) {
-    const cells = document.querySelectorAll('.cell-input');
-    
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return;
+    const cells = playerBoard.querySelectorAll('.cell-input');
+
     cells.forEach((cell, index) => {
       const cellRow = Math.floor(index / 9);
       const cellCol = index % 9;
-      
+
       // Highlight same row, column, or 3x3 box
       if (cellRow === row || cellCol === col || 
           (Math.floor(cellRow / 3) === Math.floor(row / 3) && 
            Math.floor(cellCol / 3) === Math.floor(col / 3))) {
         cell.classList.add('highlighted');
       }
-      
+
       // Highlight cells with same value
       if (value && cell.value === value) {
         cell.classList.add('highlighted');
@@ -540,7 +574,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function clearHighlights() {
-    document.querySelectorAll('.cell-input').forEach(cell => {
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return;
+    playerBoard.querySelectorAll('.cell-input').forEach(cell => {
       cell.classList.remove('highlighted');
     });
   }
@@ -560,16 +596,21 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'ArrowRight': newCol = Math.min(8, currentCol + 1); break;
     }
     
-    const newCell = document.querySelector(`[data-row="${newRow}"][data-col="${newCol}"]`);
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return;
+    const newCell = playerBoard.querySelector(`[data-row="${newRow}"][data-col="${newCol}"]`);
     if (newCell && !newCell.disabled) {
-      selectCell(newCell);
-      newCell.focus();
+      selectCell(newCell.querySelector('.cell-input') || newCell);
+      const focusEl = newCell.querySelector('.cell-input') || newCell;
+      if (focusEl && typeof focusEl.focus === 'function') focusEl.focus();
     }
   }
 
   function validateMove(row, col, value) {
-    // Basic client-side validation
-    const cells = document.querySelectorAll('.cell-input');
+    // Basic client-side validation on player's board only
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return true; // if no player board in DOM, skip strict checks
+    const cells = playerBoard.querySelectorAll('.cell-input');
     
     // Check row
     for (let c = 0; c < 9; c++) {
@@ -595,7 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
       for (let c = boxCol; c < boxCol + 3; c++) {
         if (r !== row || c !== col) {
           const cell = cells[r * 9 + c];
-          if (cell.value == value) return false;
+          if (cell && cell.value == value) return false;
         }
       }
     }
@@ -609,7 +650,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateCellsFilledCount() {
-    const filledCells = document.querySelectorAll('.cell-input[value]:not([value=""])').length;
+    const playerBoard = document.getElementById('player-board');
+    const filledCells = playerBoard.querySelectorAll('.cell-input[value]:not([value=""])').length;
     document.getElementById('cells-filled').textContent = `${filledCells}/81`;
   }
 
@@ -671,19 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
     messageDiv.scrollTop = messageDiv.scrollHeight;
   }
   
-  function updateBoardFromState(board) {
-    cellInputs = document.querySelectorAll('.cell-input');
-    cellInputs.forEach((input, index) => {
-      const row = Math.floor(index / 9);
-      const col = index % 9;
-      const value = board[row] ? board[row][col] : 0;
-      if (value !== 0) {
-        input.value = value;
-        input.disabled = true;
-        input.classList.add('prefilled');
-      }
-    });
-  }
+  
   
   function updateCellDisplay(row, col, value, player_id) {
     const input = document.querySelector(`.sudoku-cell[data-row="${row}"][data-col="${col}"] .cell-input`);
@@ -697,6 +727,77 @@ document.addEventListener('DOMContentLoaded', () => {
         input.disabled = true;
         input.classList.add('prefilled');
       }
+    }
+  }
+
+  // Board Update Functions
+  function updatePlayerBoard(row, col, value) {
+    const playerBoard = document.getElementById('player-board');
+    const cell = playerBoard.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+    if (cell) {
+      const input = cell.querySelector('.cell-input');
+      if (input && !input.classList.contains('prefilled')) {
+        input.value = value;
+        input.classList.add('filled');
+        updateCellsFilledCount();
+      }
+    }
+  }
+
+  function updateOpponentBoard(row, col, value) {
+    const opponentBoard = document.getElementById('opponent-board');
+    const cells = opponentBoard.querySelectorAll('.cell-input');
+    const cellIndex = row * 9 + col;
+    
+    if (cells[cellIndex] && !cells[cellIndex].classList.contains('prefilled')) {
+      cells[cellIndex].value = value;
+      cells[cellIndex].classList.add('filled');
+      
+      // Add visual effect for opponent move
+      cells[cellIndex].style.animation = 'opponentMove 0.5s ease';
+      setTimeout(() => {
+        cells[cellIndex].style.animation = '';
+      }, 500);
+    }
+  }
+
+  // Enhanced board state management
+  function updateBoardFromState(board, isOpponent = false) {
+    const targetBoard = isOpponent ? document.getElementById('opponent-board') : document.getElementById('player-board');
+    if (!targetBoard) return;
+    
+    const cellInputs = targetBoard.querySelectorAll('.cell-input');
+    
+    cellInputs.forEach((input, index) => {
+      const row = Math.floor(index / 9);
+      const col = index % 9;
+      const value = board[row] ? board[row][col] : 0;
+      
+      if (value !== 0 && !input.classList.contains('prefilled')) {
+        input.value = value;
+        input.classList.add('filled');
+        if (isOpponent) {
+          input.classList.add('opponent-move');
+        }
+      }
+    });
+    
+    if (!isOpponent) {
+      updateCellsFilledCount();
+    }
+  }
+
+  function handlePlayerReadyStatus(data) {
+    // Update live status without refresh
+    addMessage(`${data.username} is ready!`, 'success');
+    
+    if (data.both_ready) {
+      // Update game status
+      document.getElementById('game-status').innerHTML = '🏁 Starting...';
+      addMessage('Both players ready! Race starting soon...', 'success');
+    } else {
+      // Update game status  
+      document.getElementById('game-status').innerHTML = '⏳ Waiting for opponent';
     }
   }
   

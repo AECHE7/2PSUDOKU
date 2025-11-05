@@ -93,13 +93,19 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({'error': 'Cannot join this game'}))
             return
         
-        # Send game state to client (fetch puzzle + player board via id)
+        # Send game state to client (fetch puzzle + both player boards via id)
         puzzle = await self.get_puzzle(game_id)
         player_board = await self.get_player_board(game_id, self.user.id)
+        
+        # Get opponent board for real-time display
+        opponent_id = game_info['player2_id'] if self.user.id == game_info['player1_id'] else game_info['player1_id']
+        opponent_board = await self.get_player_board(game_id, opponent_id) if opponent_id else puzzle
+        
         await self.send(text_data=json.dumps({
             'type': 'game_state',
             'puzzle': puzzle,
             'board': player_board,
+            'opponent_board': opponent_board,
             'player1': game_info['player1_username'],
             'player2': game_info['player2_username'],
             'status': await self.get_game_status(game_id),
@@ -145,7 +151,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         new_board[row][col] = value
         await self.update_player_board(game_id, self.user.id, new_board)
 
-        # Broadcast the move to all players so both UIs update
+        # Broadcast the move to all players with enhanced real-time data
         await self.channel_layer.group_send(
             self.group_name,
             {
@@ -155,6 +161,18 @@ class GameConsumer(AsyncWebsocketConsumer):
                 'col': col,
                 'value': value,
                 'player_id': self.user.id,
+                'timestamp': timezone.now().isoformat(),
+            }
+        )
+
+        # Also broadcast updated game progress
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                'type': 'game_progress_update',
+                'player_id': self.user.id,
+                'username': self.user.username,
+                'board': new_board,
             }
         )
 
@@ -225,6 +243,24 @@ class GameConsumer(AsyncWebsocketConsumer):
             'type': 'notification',
             'message': event['message'],
         }))
+
+    async def game_progress_update(self, event):
+        """Handle real-time game progress updates."""
+        await self.send(text_data=json.dumps({
+            'type': 'game_progress_update',
+            'player_id': event['player_id'],
+            'username': event['username'], 
+            'board': event['board'],
+        }))
+
+    async def player_ready_status(self, event):
+        """Handle player ready status updates."""
+        await self.send(text_data=json.dumps({
+            'type': 'player_ready_status',
+            'player_id': event['player_id'],
+            'username': event['username'],
+            'both_ready': event['both_ready'],
+        }))
         
 
 
@@ -237,12 +273,14 @@ class GameConsumer(AsyncWebsocketConsumer):
 
         both_ready = await self.set_player_ready(game_id, self.user.id)
 
-        # Notify group about readiness
+        # Notify group about readiness with live status update
         await self.channel_layer.group_send(
             self.group_name,
             {
-                'type': 'notification',
-                'message': f"{self.user.username} is ready",
+                'type': 'player_ready_status',
+                'player_id': self.user.id,
+                'username': self.user.username,
+                'both_ready': both_ready,
             }
         )
 

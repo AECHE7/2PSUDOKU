@@ -156,6 +156,36 @@
     border-color: #28a745;
   }
 
+  /* Opponent Board Styling */
+  .opponent-board {
+    transform: scale(0.6);
+    opacity: 0.8;
+    margin: -60px auto -40px auto;
+  }
+
+  .opponent-cell {
+    background-color: #f8f9fa;
+    color: #6c757d;
+    font-size: 1rem;
+    cursor: not-allowed;
+  }
+
+  .opponent-cell.filled {
+    background-color: #e3f2fd;
+    color: #1976d2;
+    font-weight: bold;
+  }
+
+  .board-section {
+    position: relative;
+  }
+
+  @keyframes opponentMove {
+    0% { background-color: #fff3cd; transform: scale(1); }
+    50% { background-color: #ffc107; transform: scale(1.1); }
+    100% { background-color: #e3f2fd; transform: scale(1); }
+  }
+
   @keyframes correctPulse {
     0% { transform: scale(1); }
     50% { transform: scale(1.1); }
@@ -393,18 +423,47 @@
       </div>
     </div>
 
-    <!-- Interactive Sudoku Grid -->
-    {% if board %}
-      <table class="sudoku-grid">
+    <!-- Player's Interactive Sudoku Grid -->
+    <div class="board-section">
+      <h6 class="text-center mb-2">Your Board</h6>
+      {% if board %}
+        <table class="sudoku-grid" id="player-board">
+          <tbody>
+            {% for row in board %}
+              <tr class="sudoku-row">
+                {% for cell in row %}
+                  <td class="sudoku-cell" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
+                    {% if cell != 0 %}
+                      <input type="number" min="1" max="9" class="cell-input prefilled" value="{{ cell }}" disabled readonly>
+                    {% else %}
+                      <input type="number" min="1" max="9" class="cell-input" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="loading-board text-center py-5">
+          <p class="h5">🎲 Loading puzzle...</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Opponent's Board Preview (Read-only) -->
+    <div class="board-section mt-4">
+      <h6 class="text-center mb-2">Opponent's Progress</h6>
+      <table class="sudoku-grid opponent-board" id="opponent-board">
         <tbody>
           {% for row in board %}
             <tr class="sudoku-row">
               {% for cell in row %}
-                <td class="sudoku-cell" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
+                <td class="sudoku-cell">
                   {% if cell != 0 %}
-                    <input type="number" min="1" max="9" class="cell-input prefilled" value="{{ cell }}" disabled readonly>
+                    <input type="number" class="cell-input prefilled opponent-cell" value="{{ cell }}" disabled readonly>
                   {% else %}
-                    <input type="number" min="1" max="9" class="cell-input" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
+                    <input type="number" class="cell-input opponent-cell" disabled readonly>
                   {% endif %}
                 </td>
               {% endfor %}
@@ -412,11 +471,7 @@
           {% endfor %}
         </tbody>
       </table>
-    {% else %}
-      <div class="loading-board text-center py-5">
-        <p class="h5">🎲 Loading puzzle...</p>
-      </div>
-    {% endif %}
+    </div>
 
     <!-- Number Pad -->
     <div class="number-pad">
