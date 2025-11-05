@@ -1,7 +1,48 @@
 body {
   font-family: Arial, sans-serif;
-  margin: 2rem;
+  margin: 1rem;
   background-color: #f5f5f5;
+  min-height: 100vh;
+}
+
+/* Desktop Responsiveness */
+@media (min-width: 1200px) {
+  body {
+    margin: 2rem auto;
+    max-width: 1400px;
+  }
+  
+  .container-fluid {
+    padding: 0 3rem;
+  }
+  
+  .game-layout {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 2rem;
+    align-items: start;
+  }
+  
+  .sudoku-container {
+    max-width: none;
+  }
+  
+  .game-info-sidebar {
+    position: sticky;
+    top: 2rem;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  body {
+    margin: 1.5rem;
+  }
+  
+  .game-layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 1.5rem;
+  }
 }
 
 header {
@@ -9,6 +50,24 @@ header {
   padding: 1rem;
   background-color: #fff;
   border-bottom: 2px solid #ddd;
+}
+
+/* Desktop header enhancements */
+@media (min-width: 1200px) {
+  header {
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+  }
+  
+  header .navbar-brand {
+    font-size: 1.8rem;
+    font-weight: 700;
+  }
+  
+  header .navbar-nav .nav-link {
+    font-size: 1.1rem;
+    padding: 0.8rem 1.2rem;
+  }
 }
 
 header a {
@@ -19,9 +78,71 @@ main {
   max-width: 600px;
   margin: 0 auto;
   background-color: #fff;
-  padding: 2rem;
+  padding: 1.5rem;
   border-radius: 5px;
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Enhanced main for desktop */
+@media (min-width: 1200px) {
+  main {
+    max-width: none;
+    padding: 2rem;
+  }
+  
+  /* Larger Sudoku grid for desktop */
+  .sudoku-grid {
+    max-width: 500px;
+    margin: 2rem auto;
+  }
+  
+  .cell-input {
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+  
+  /* Enhanced statistics for desktop */
+  .stats-card {
+    padding: 1.5rem;
+  }
+  
+  .stats-card h4 {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+  }
+  
+  .stat-item {
+    padding: 0.8rem;
+    margin-bottom: 0.8rem;
+  }
+  
+  /* Better game controls spacing */
+  .game-controls {
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+  }
+  
+  .game-controls .btn {
+    padding: 0.8rem 1.5rem;
+    font-size: 1.1rem;
+    margin: 0.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  main {
+    padding: 2rem;
+  }
+  
+  /* Medium screens - tablet optimization */
+  .sudoku-grid {
+    max-width: 450px;
+    margin: 1.5rem auto;
+  }
+  
+  .cell-input {
+    font-size: 1.3rem;
+  }
 }
 
 #messages div {

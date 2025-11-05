@@ -107,6 +107,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       
+      // Validate the board after it's loaded
+      setTimeout(() => {
+        if (typeof validateEntireBoard === 'function') {
+          validateEntireBoard();
+        }
+      }, 500);
+      
       // If race already started, start timers
       if (data.start_time) {
         startTimers(new Date(data.start_time));
@@ -117,6 +124,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.player_id == playerId) {
         // Update player's own board (shouldn't be needed but for consistency)
         updatePlayerBoard(data.row, data.col, data.value);
+        
+        // Validate after move update
+        setTimeout(() => {
+          if (typeof validateEntireBoard === 'function') {
+            validateEntireBoard();
+          }
+        }, 100);
       } else {
         // Simple opponent move notification
         addMessage(`${data.username} made a move`, 'info');
@@ -294,9 +308,22 @@ document.addEventListener('DOMContentLoaded', () => {
         col: col,
         value: value,
       });
+
+      // Validate entire board after move to catch any other invalid states
+      setTimeout(() => {
+        validateEntireBoard();
+      }, 100);
       
       updateCellsFilledCount();
       highlightRelatedCells(row, col, value);
+      
+      // Always run full board validation after any move
+      setTimeout(() => {
+        if (typeof validateEntireBoard === 'function') {
+          console.log('Running full board validation after move');
+          validateEntireBoard();
+        }
+      }, 200);
       
     } else if (e.target.value === '') {
       // Clear validation states when cell is emptied
@@ -1159,6 +1186,86 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  // Function to validate entire board and highlight invalid cells
+  function validateEntireBoard() {
+    console.log('🔍 Validating entire board...');
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return;
+    
+    const cells = playerBoard.querySelectorAll('.cell-input');
+    let invalidCount = 0;
+    
+    // Clear existing validation states
+    cells.forEach(cell => {
+      cell.classList.remove('invalid', 'conflict');
+    });
+    
+    // Check each filled cell
+    cells.forEach((cell, index) => {
+      if (cell && cell.value && cell.value !== '') {
+        const row = Math.floor(index / 9);
+        const col = index % 9;
+        const value = parseInt(cell.value);
+        
+        if (!validateMove(row, col, value)) {
+          cell.classList.add('invalid');
+          invalidCount++;
+          console.log(`❌ Invalid cell found at [${row}, ${col}] with value ${value}`);
+        }
+      }
+    });
+    
+    console.log(`📊 Board validation complete: ${invalidCount} invalid cells found`);
+    return invalidCount === 0;
+  }
+
+  // Function to trigger validation on board load/update
+  window.validateBoard = validateEntireBoard;
+
+  // Function to validate and highlight all invalid entries on the board
+  window.validateEntireBoard = function() {
+    console.log('🔍 Validating entire board...');
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) {
+      console.error('❌ Player board not found!');
+      return;
+    }
+    
+    const cells = playerBoard.querySelectorAll('.cell-input');
+    let invalidCount = 0;
+    
+    // Clear all existing validation classes first
+    cells.forEach(cell => {
+      cell.classList.remove('correct', 'incorrect', 'invalid', 'conflict');
+    });
+    
+    // Check each filled cell
+    cells.forEach((cell, index) => {
+      if (cell.value && cell.value !== '' && !cell.disabled) {
+        const row = Math.floor(index / 9);
+        const col = index % 9;
+        const value = parseInt(cell.value);
+        
+        if (!validateMove(row, col, value)) {
+          cell.classList.add('invalid');
+          highlightConflictingCells(row, col, value);
+          invalidCount++;
+          console.log(`❌ Invalid entry found at [${row}, ${col}]: ${value}`);
+        }
+      }
+    });
+    
+    console.log(`✅ Board validation complete. Found ${invalidCount} invalid entries.`);
+    return invalidCount;
+  };
+
+  // Auto-validate board when page loads
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+      validateEntireBoard();
+    }, 1000);
+  });
+
   // Statistics Functions
   function updateMistakeCount() {
     document.getElementById('mistake-count').textContent = mistakeCount;
@@ -1295,6 +1402,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (!isOpponent) {
       updateCellsFilledCount();
+      // Validate the entire board after update
+      setTimeout(() => {
+        validateEntireBoard();
+      }, 100);
     }
   }
 
