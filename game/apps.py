@@ -46,25 +46,10 @@ class GameConfig(AppConfig):
                     auth_table_exists = cursor.fetchone()[0] > 0
                 
                 if not auth_table_exists:
-                    print("❌ auth_user table missing - running migrations...")
-                    
-                    # Run migrations
-                    print("🔧 Migrating Django core apps...")
-                    for app in ['contenttypes', 'auth', 'admin', 'sessions']:
-                        execute_from_command_line(['manage.py', 'migrate', app, '--verbosity=1'])
-                        print(f"✅ {app} migrated")
-                    
-                    print("🔧 Running all migrations...")
-                    execute_from_command_line(['manage.py', 'migrate', '--verbosity=1'])
-                    
-                    # Verify auth_user table now exists
-                    with connection.cursor() as cursor:
-                        cursor.execute('SELECT COUNT(*) FROM auth_user')
-                        print(f"✅ auth_user table verified with {cursor.fetchone()[0]} users")
-                    
-                    print("🎉 AUTO-MIGRATION: Migrations completed successfully!")
+                    print("⚠️ auth_user table missing - should have been created by ASGI layer")
+                    print("   ASGI layer will handle migrations, skipping app config migration")
                 else:
-                    print("✅ auth_user table exists - migrations already applied")
+                    print("✅ auth_user table exists - ASGI migration layer succeeded!")
                 
                 # Set environment variable to prevent re-running
                 os.environ['MIGRATIONS_RAN'] = '1'
