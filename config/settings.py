@@ -154,8 +154,19 @@ static_dir = BASE_DIR / 'static'
 if static_dir.exists():
     STATICFILES_DIRS = [static_dir]
 
-# Static file storage for production
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Static file storage for production - use StaticFilesStorage to avoid compression issues
+if not DEBUG:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+else:
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+
+# WhiteNoise configuration for better static file serving
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_AUTOREFRESH = DEBUG
+WHITENOISE_MIMETYPES = {
+    '.js': 'application/javascript',
+    '.css': 'text/css',
+}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
