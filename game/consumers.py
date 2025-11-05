@@ -11,6 +11,15 @@ from .sudoku import SudokuPuzzle
 class GameConsumer(AsyncWebsocketConsumer):
     """WebSocket consumer for real-time game play."""
     
+    async def safe_send(self, message):
+        """Safely send a message, catching closed connection errors."""
+        try:
+            if hasattr(self, 'channel_name') and self.channel_name:
+                await self.send(text_data=json.dumps(message))
+        except Exception as e:
+            # Log the error but don't raise it to prevent server crashes
+            print(f"WebSocket send error (connection likely closed): {e}")
+    
     async def connect(self):
         self.code = self.scope['url_route']['kwargs']['code']
         self.group_name = f'game_{self.code}'
@@ -49,7 +58,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         try:
             data = json.loads(text_data)
         except json.JSONDecodeError:
-            await self.send(text_data=json.dumps({'error': 'Invalid JSON'}))
+            await self.safe_send({'error': 'Invalid JSON'})
             return
         
         message_type = data.get('type')
@@ -72,7 +81,8 @@ class GameConsumer(AsyncWebsocketConsumer):
             # Handle notification messages (these are usually just client acknowledgments)
             pass
         else:
-            await self.send(text_data=json.dumps({'error': f'Unknown message type: {message_type}'}))
+            await self.safe_send({'error': f'Unknown message type: {message_type}'})
+            return
     
     async def handle_join_game(self, data):
         """Handle player joining a game."""
@@ -92,7 +102,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             # Rejoin existing game
             pass
         else:
-            await self.send(text_data=json.dumps({'error': 'Cannot join this game'}))
+            await self.safe_send({'error': 'Cannot join this game'})
             return
         
         # Send game state to client (fetch puzzle + both player boards via id)
@@ -103,7 +113,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         opponent_id = game_info['player2_id'] if self.user.id == game_info['player1_id'] else game_info['player1_id']
         opponent_board = await self.get_player_board(game_id, opponent_id) if opponent_id else puzzle
         
-        await self.send(text_data=json.dumps({
+        await self.safe_send({
             'type': 'game_state',
             'puzzle': puzzle,
             'board': player_board,
@@ -112,7 +122,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             'player2': game_info['player2_username'],
             'status': await self.get_game_status(game_id),
             'start_time': await self.get_start_time_iso(game_id),
-        }))
+        })
 
         # Notify group that a player joined
         await self.channel_layer.group_send(
@@ -130,20 +140,20 @@ class GameConsumer(AsyncWebsocketConsumer):
         value = data.get('value')
         
         if not all(isinstance(x, int) for x in [row, col, value]):
-            await self.send(text_data=json.dumps({'error': 'Invalid move data'}))
+            await self.safe_send({'error': 'Invalid move data'})
             return
         
         # Resolve game id first
         game_id = await self.get_game_id()
         if not game_id:
-            await self.send(text_data=json.dumps({'error': 'Game not found'}))
+            await self.safe_send({'error': 'Game not found'})
             return
 
         # Race mode: both players can play simultaneously. Fetch the player's board.
         current_board = await self.get_player_board(game_id, self.user.id)
         puzzle = SudokuPuzzle.from_dict({'board': current_board})
         if not puzzle.is_valid_placement(row, col, value):
-            await self.send(text_data=json.dumps({'error': 'Invalid move'}))
+            await self.safe_send({'error': 'Invalid move'})
             return
         
         # Record the move
@@ -187,64 +197,61 @@ class GameConsumer(AsyncWebsocketConsumer):
         """Send current board state to client."""
         game_id = await self.get_game_id()
         if not game_id:
-            await self.send(text_data=json.dumps({'error': 'Game not found'}))
+            await self.safe_send({'error': 'Game not found'})
             return
 
         board_state = await self.get_player_board(game_id, self.user.id)
-        await self.send(text_data=json.dumps({
+        await self.safe_send({
             'type': 'board',
             'board': board_state,
-        }))
+        })
     
     # Event handlers for group messages
     async def player_connected(self, event):
-        await self.send(text_data=json.dumps({
+        await self.safe_send({
             'type': 'notification',
             'message': f"{event['username']} connected",
-        }))
+        })
 
     async def player_joined(self, event):
-        await self.send(text_data=json.dumps({
+        await self.safe_send({
             'type': 'notification',
             'message': f"{event['username']} joined the room",
-        }))
+        })
 
     async def race_started(self, event):
-        await self.send(text_data=json.dumps({
+        await self.safe_send({
             'type': 'race_started',
             'start_time': event.get('start_time'),
             'puzzle': event.get('puzzle'),
-        }))
+        })
 
     async def race_finished(self, event):
-        await self.send(text_data=json.dumps({
+        await self.safe_send({
             'type': 'race_finished',
             'winner_id': event.get('winner_id'),
             'winner_username': event.get('winner_username'),
             'winner_time': event.get('winner_time'),
-        }))
+        })
     
     async def player_disconnected(self, event):
-        await self.send(text_data=json.dumps({
+        await self.safe_send({
             'type': 'notification',
-            'message': f"{event['username']} disconnected",
-        }))
+        })
     
     async def move_made(self, event):
-        await self.send(text_data=json.dumps({
+        await self.safe_send({
             'type': 'move',
             'username': event['username'],
             'row': event['row'],
             'col': event['col'],
             'value': event['value'],
             'player_id': event.get('player_id'),
-        }))
+        })
 
     async def notification(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'notification',
-            'message': event['message'],
-        }))
+        await self.safe_send({
+        })
 
     async def game_progress_update(self, event):
         """Handle real-time game progress updates."""

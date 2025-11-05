@@ -23,6 +23,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let startTime = null;
   let elapsedInterval = null;
 
+  // Sudoku validation state
+  let currentBoard = [];
+  let puzzleBoard = [];
+  let validationEnabled = true;
+
   // Helper function to safely send WebSocket messages
   let messageQueue = [];
   let isConnected = false;
@@ -207,6 +212,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const value = parseInt(e.target.value);
     
     if (value && value >= 1 && value <= 9) {
+      // Clear any previous validation classes
+      clearValidationHighlights();
+      
       // Validate move immediately
       const isValidMove = validateMove(row, col, value);
       
@@ -217,9 +225,16 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         e.target.classList.add('incorrect');
         e.target.classList.remove('correct');
+        
+        // Highlight conflicting cells
+        highlightConflictingCells(row, col, value);
+        
         mistakeCount++;
         updateMistakeCount();
-        setTimeout(() => e.target.classList.remove('incorrect'), 500);
+        setTimeout(() => {
+          e.target.classList.remove('incorrect');
+          clearConflictHighlights();
+        }, 1500);
       }
 
       safeSend({
@@ -894,6 +909,63 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     return true;
+  }
+
+  function highlightConflictingCells(row, col, value) {
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return;
+    const cells = playerBoard.querySelectorAll('.cell-input');
+    
+    // Highlight conflicting cells in row
+    for (let c = 0; c < 9; c++) {
+      if (c !== col) {
+        const cell = cells[row * 9 + c];
+        if (cell.value == value) {
+          cell.classList.add('conflict');
+        }
+      }
+    }
+    
+    // Highlight conflicting cells in column
+    for (let r = 0; r < 9; r++) {
+      if (r !== row) {
+        const cell = cells[r * 9 + col];
+        if (cell.value == value) {
+          cell.classList.add('conflict');
+        }
+      }
+    }
+    
+    // Highlight conflicting cells in 3x3 box
+    const boxRow = Math.floor(row / 3) * 3;
+    const boxCol = Math.floor(col / 3) * 3;
+    
+    for (let r = boxRow; r < boxRow + 3; r++) {
+      for (let c = boxCol; c < boxCol + 3; c++) {
+        if (r !== row || c !== col) {
+          const cell = cells[r * 9 + c];
+          if (cell && cell.value == value) {
+            cell.classList.add('conflict');
+          }
+        }
+      }
+    }
+  }
+
+  function clearConflictHighlights() {
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return;
+    const conflictCells = playerBoard.querySelectorAll('.cell-input.conflict');
+    conflictCells.forEach(cell => cell.classList.remove('conflict'));
+  }
+
+  function clearValidationHighlights() {
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) return;
+    const validationCells = playerBoard.querySelectorAll('.cell-input.correct, .cell-input.incorrect');
+    validationCells.forEach(cell => {
+      cell.classList.remove('correct', 'incorrect');
+    });
   }
 
   // Statistics Functions

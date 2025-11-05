@@ -203,3 +203,35 @@ section a:hover {
   background-color: #e3f2fd;
 }
 
+/* Input validation styles - Sudoku.com inspired */
+.cell-input.correct {
+  background-color: #e8f5e8 !important;
+  border-color: #4caf50 !important;
+  animation: correctPulse 0.5s ease-in-out;
+}
+
+.cell-input.incorrect {
+  background-color: #ffeaea !important;
+  border-color: #f44336 !important;
+  color: #f44336 !important;
+  animation: incorrectShake 0.5s ease-in-out;
+}
+
+@keyframes correctPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes incorrectShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+/* Highlight conflicting cells when invalid input is made */
+.cell-input.conflict {
+  background-color: #fff3cd !important;
+  border-color: #ffc107 !important;
+}
+
