@@ -625,18 +625,18 @@ class GameConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def add_player2(self, game_id, user_id):
-        """Add second player to game and mark as in progress."""
+        """Add second player to game and mark as racing."""
         game = GameSession.objects.get(id=game_id)
         user = User.objects.get(id=user_id)
         game.player2 = user
-        game.status = 'in_progress'
+        game.status = 'racing'
         game.save()
     
     @database_sync_to_async
     def start_game(self, game_id):
-        """Mark game as started."""
+        """Mark game as racing."""
         game = GameSession.objects.get(id=game_id)
-        game.status = 'in_progress'
+        game.status = 'racing'
         game.save()
     
     @database_sync_to_async

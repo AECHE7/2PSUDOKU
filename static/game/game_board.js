@@ -154,6 +154,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (data.type === 'board') {
       updateBoardFromState(data.board);
     } else if (data.type === 'race_started') {
+      console.log('🏁 Race started message received:', data);
+      
       // Initialize game statistics
       gameStatistics.startTime = data.start_time;
       gameStatistics.moveCount = 0;
@@ -167,6 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Start timers and ensure both boards have the puzzle
       const startTime = new Date(data.start_time);
+      console.log('⏰ Starting timers with start time:', startTime);
       startTimers(startTime);
       startElapsedTimer();
       
@@ -175,9 +178,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       
       // Update game status
-      document.getElementById('game-status').innerHTML = '🏁 Racing';
+      const gameStatusEl = document.getElementById('game-status');
+      if (gameStatusEl) {
+        gameStatusEl.innerHTML = '🏁 Racing';
+        console.log('✅ Updated game status to Racing');
+      }
       
-      addMessage('Race started — good luck!');
+      addMessage('🏁 Race started — good luck!', 'success');
     } else if (data.type === 'race_finished') {
       handleGameFinished(data);
     } else if (data.type === 'game_progress_update') {
@@ -260,25 +267,25 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log('Change event triggered on cell input');
     
-    // Get row/col from input element or its parent cell  
-    let row, col;
-    
-    // First try to get from input element
-    if (e.target.dataset.row !== undefined && e.target.dataset.col !== undefined) {
-      row = parseInt(e.target.dataset.row);
-      col = parseInt(e.target.dataset.col);
-      console.log('Got row/col from input element:', { row, col });
-    } else {
-      // Fallback to parent cell
-      const cell = e.target.closest('.sudoku-cell');
-      if (!cell) {
-        console.error('Cannot find parent cell');
-        return;
-      }
-      row = parseInt(cell.dataset.row);
-      col = parseInt(cell.dataset.col);
-      console.log('Got row/col from parent cell:', { row, col });
+    // Get row/col by finding the input's position in the board
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) {
+      console.error('Player board not found');
+      return;
     }
+    
+    const cells = playerBoard.querySelectorAll('.cell-input');
+    const index = Array.from(cells).indexOf(e.target);
+    
+    if (index === -1) {
+      console.error('Cell input not found in board');
+      return;
+    }
+    
+    const row = Math.floor(index / 9);
+    const col = index % 9;
+    
+    console.log(`Got row/col from index calculation: index=${index}, row=${row}, col=${col}`);
     
     const value = parseInt(e.target.value);
     console.log(`🎯 Input change detected: Row ${row}, Col ${col}, Value ${value}`);
@@ -1350,14 +1357,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let filledCells = 0;
     let validCells = 0;
     
-    cells.forEach(cell => {
+    cells.forEach((cell, index) => {
       const value = parseInt(cell.value);
       if (value >= 1 && value <= 9) {
         filledCells++;
         
-        // Get row and col from cell attributes
-        const row = parseInt(cell.getAttribute('data-rowindex'));
-        const col = parseInt(cell.getAttribute('data-colindex'));
+        // Get row and col using index calculation (consistent with validateEntireBoard)
+        const row = Math.floor(index / 9);
+        const col = index % 9;
         
         // Check if this move is valid
         if (validateMove(row, col, value)) {
