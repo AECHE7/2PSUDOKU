@@ -231,6 +231,74 @@ class NotificationMessage(WebSocketMessage):
         )
 
 
+class MessageFactory:
+    """Factory for creating message instances."""
+
+    @staticmethod
+    def create_message(msg_type: str, data: Dict[str, Any]) -> WebSocketMessage:
+        """Create a message instance based on type."""
+        message_classes = {
+            MessageType.JOIN_GAME: JoinGameMessage,
+            MessageType.GAME_STATE: GameStateMessage,
+            MessageType.MOVE: MoveMessage,
+            MessageType.MOVE_MADE: MoveMadeMessage,
+            MessageType.COMPLETE: CompleteMessage,
+            MessageType.RACE_FINISHED: RaceFinishedMessage,
+            MessageType.PLAY_AGAIN: PlayAgainMessage,
+            MessageType.NEW_GAME_CREATED: NewGameCreatedMessage,
+            MessageType.ERROR: ErrorMessage,
+            MessageType.NOTIFICATION: NotificationMessage,
+        }
+
+        if msg_type not in message_classes:
+            raise ValueError(f"Unknown message type: {msg_type}")
+
+        # Extract required fields based on message class
+        if msg_type == MessageType.JOIN_GAME:
+            return message_classes[msg_type](data.get('player_id'))
+        elif msg_type == MessageType.GAME_STATE:
+            return message_classes[msg_type](
+                data.get('puzzle'), data.get('board'),
+                data.get('opponent_board'), data.get('player1'),
+                data.get('player2'), data.get('status'),
+                data.get('start_time')
+            )
+        elif msg_type == MessageType.MOVE:
+            return message_classes[msg_type](
+                data.get('row'), data.get('col'), data.get('value')
+            )
+        elif msg_type == MessageType.MOVE_MADE:
+            return message_classes[msg_type](
+                data.get('username'), data.get('row'),
+                data.get('col'), data.get('value'),
+                data.get('player_id'), data.get('timestamp')
+            )
+        elif msg_type == MessageType.COMPLETE:
+            return message_classes[msg_type](data.get('completion_time'))
+        elif msg_type == MessageType.RACE_FINISHED:
+            return message_classes[msg_type](
+                data.get('winner_id'), data.get('winner_username'),
+                data.get('winner_time'), data.get('loser_time')
+            )
+        elif msg_type == MessageType.PLAY_AGAIN:
+            return message_classes[msg_type](data.get('difficulty'))
+        elif msg_type == MessageType.NEW_GAME_CREATED:
+            return message_classes[msg_type](
+                data.get('game_code'), data.get('difficulty')
+            )
+        elif msg_type == MessageType.ERROR:
+            return message_classes[msg_type](
+                data.get('message'), data.get('code')
+            )
+        elif msg_type == MessageType.NOTIFICATION:
+            return message_classes[msg_type](
+                data.get('message'), data.get('level')
+            )
+
+        # Default case - pass all data to constructor
+        return message_classes[msg_type](**data)
+
+
 class MessageValidator:
     """Validates WebSocket messages against schemas."""
 
