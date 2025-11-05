@@ -1,4 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // Ensure Logger is available, fallback to console if not
+  if (typeof Logger === 'undefined') {
+    window.Logger = {
+      debug: console.log.bind(console),
+      info: console.info.bind(console),
+      warn: console.warn.bind(console),
+      error: console.error.bind(console),
+      critical: console.error.bind(console)
+    };
+  }
+  
   // Read configuration from data attributes
   const gameDataEl = document.getElementById('game-data');
   const gameCode = gameDataEl.dataset.gameCode;
@@ -301,37 +312,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!e.target.classList.contains('cell-input')) return;
     if (e.target.disabled) return;
     
-    console.log('🎯 CHANGE EVENT TRIGGERED ON CELL INPUT!');
-    console.log('📝 Target element:', e.target);
-    console.log('📝 Target value:', e.target.value);
-    console.log('📝 Target classes:', e.target.className);
+    Logger.debug('🎯 CHANGE EVENT TRIGGERED ON CELL INPUT!');
+    Logger.debug('📝 Target element:', e.target);
+    Logger.debug('📝 Target value:', e.target.value);
     
-    // Get row/col by finding the input's position in the board
-    const playerBoard = document.getElementById('player-board');
-    if (!playerBoard) {
-      console.error('Player board not found');
+    // Get row/col from parent td element's data attributes
+    const cell = e.target.closest('.sudoku-cell');
+    if (!cell) {
+      Logger.error('Could not find parent sudoku-cell');
       return;
     }
     
-    const cells = playerBoard.querySelectorAll('.cell-input');
-    const index = Array.from(cells).indexOf(e.target);
+    const row = parseInt(cell.dataset.row);
+    const col = parseInt(cell.dataset.col);
     
-    if (index === -1) {
-      console.error('Cell input not found in board');
-      return;
-    }
-    
-    const row = Math.floor(index / 9);
-    const col = index % 9;
-    
-    console.log(`Got row/col from index calculation: index=${index}, row=${row}, col=${col}`);
+    Logger.debug(`Got row/col from data attributes: row=${row}, col=${col}`);
     
     const value = parseInt(e.target.value);
-    console.log(`🎯 Input change detected: Row ${row}, Col ${col}, Value ${value}`);
+    Logger.debug(`🎯 Input change detected: Row ${row}, Col ${col}, Value ${value}`);
     
     // Check if we have valid row/col values
     if (isNaN(row) || isNaN(col)) {
-      console.error('Invalid row/col values:', { row, col });
+      Logger.error('Invalid row/col values:', { row, col });
       return;
     }
     
@@ -340,27 +342,26 @@ document.addEventListener('DOMContentLoaded', () => {
       e.target.classList.remove('correct', 'incorrect', 'invalid');
       
       // Validate move immediately
-      console.log('🔍 Calling validateMove...');
+      Logger.debug('🔍 Calling validateMove...');
       const isValidMove = validateMove(row, col, value);
-      console.log('🔍 Validation result:', isValidMove);
+      Logger.debug('🔍 Validation result:', isValidMove);
       
       // Track this move for analysis
       trackMove(row, col, value, isValidMove);
       
       if (isValidMove) {
-        console.log('✅ Valid move - adding correct class');
+        Logger.debug('✅ Valid move - adding correct class');
         e.target.classList.add('correct');
         validMoves++;
         gameStatistics.validMoveCount++;
         
         setTimeout(() => {
           e.target.classList.remove('correct');
-          console.log('Removed correct class');
         }, 500);
         // Clear any conflict highlights when a valid move is made
         clearConflictHighlights();
       } else {
-        console.log('❌ Invalid move - adding incorrect class');
+        Logger.debug('❌ Invalid move - adding incorrect class');
         // Show immediate feedback with shake animation
         e.target.classList.add('incorrect');
         invalidMoves++;
@@ -376,7 +377,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
           e.target.classList.remove('incorrect');
           e.target.classList.add('invalid'); // Permanent red state like Sudoku.com
-          console.log('Changed to permanent invalid state');
         }, 500);
         
         // Keep conflict highlights visible longer
@@ -558,32 +558,33 @@ document.addEventListener('DOMContentLoaded', () => {
       clearInterval(timerInterval);
     }
     
-    console.log('⏰ Setting up new timer interval');
-    timerInterval = setInterval(() => {
-      const now = new Date();
-      const elapsed = Math.max(0, Math.floor((now - raceStartTime) / 1000));
-      const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
-      const ss = String(elapsed % 60).padStart(2, '0');
+    // Wait for DOM to be ready
+    setTimeout(() => {
+      console.log('⏰ Setting up new timer interval');
+      timerInterval = setInterval(() => {
+        const now = new Date();
+        const elapsed = Math.max(0, Math.floor((now - raceStartTime) / 1000));
+        const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        const ss = String(elapsed % 60).padStart(2, '0');
+        
+        const timer1 = document.getElementById('player1-timer');
+        const timer2 = document.getElementById('player2-timer');
+        
+        if (timer1) {
+          timer1.textContent = `${mm}:${ss}`;
+        } else {
+          console.error('❌ player1-timer element not found!');
+        }
+        
+        if (timer2) {
+          timer2.textContent = `${mm}:${ss}`;
+        } else {
+          console.error('❌ player2-timer element not found!');
+        }
+      }, 500);
       
-      const timer1 = document.getElementById('player1-timer');
-      const timer2 = document.getElementById('player2-timer');
-      
-      if (timer1) {
-        timer1.textContent = `${mm}:${ss}`;
-        console.log('⏰ Updated player1-timer:', `${mm}:${ss}`);
-      } else {
-        console.error('❌ player1-timer element not found!');
-      }
-      
-      if (timer2) {
-        timer2.textContent = `${mm}:${ss}`;
-        console.log('⏰ Updated player2-timer:', `${mm}:${ss}`);
-      } else {
-        console.error('❌ player2-timer element not found!');
-      }
-    }, 500);
-    
-    console.log('✅ Timer interval set up successfully');
+      console.log('✅ Timer interval set up successfully');
+    }, 100); // Small delay to ensure DOM is ready
   }
 
   function stopTimers() {
