@@ -120,6 +120,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.type === 'notification') {
       addMessage(data.message);
     } else if (data.type === 'game_state') {
+      console.log('🎮 GAME_STATE received:', {
+        player1: data.player1,
+        player2: data.player2,
+        status: data.status,
+        start_time: data.start_time,
+        has_puzzle: !!data.puzzle,
+        has_board: !!data.board
+      });
+      
       // Initial state: focus on player's board only
       updateBoardFromState(data.board, false); // Player's board
       
@@ -145,7 +154,10 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // If race already started, start timers
       if (data.start_time) {
+        console.log('⏱️ game_state has start_time, starting timers...');
         startTimers(new Date(data.start_time));
+      } else {
+        console.log('⏱️ game_state has NO start_time yet, waiting for race_started...');
       }
     } else if (data.type === 'move') {
       // Simple move notification - focus on player's own game

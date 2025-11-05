@@ -53,11 +53,11 @@ class SudokuPuzzle:
     def _remove_cells(self, difficulty: str):
         """Remove cells based on difficulty level."""
         difficulty_map = {
-            'easy': 30,
-            'medium': 40,
-            'hard': 50,
+            'easy': 9,      # Only 9 empty cells (72 filled) - SUPER EASY for testing/racing
+            'medium': 35,   # 35 empty cells (46 filled)
+            'hard': 55,     # 55 empty cells (26 filled)
         }
-        cells_to_remove = difficulty_map.get(difficulty, 40)
+        cells_to_remove = difficulty_map.get(difficulty, 35)
         removed = 0
         while removed < cells_to_remove:
             row = random.randint(0, 8)
