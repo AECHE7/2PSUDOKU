@@ -260,6 +260,13 @@ class GameConsumer(AsyncWebsocketConsumer):
                 }
             )
 
+            # Send completion confirmation to the player
+            await self.send(text_data=json.dumps({
+                'type': MessageType.PUZZLE_COMPLETE,
+                'player_id': self.user.id,
+                'completion_time': message.completion_time
+            }))
+
         except Exception as e:
             logger.error(f"Error in handle_complete: {e}")
             await self.send_error("Failed to complete puzzle")

@@ -112,7 +112,10 @@ document.addEventListener('DOMContentLoaded', () => {
       game_state: handleGameState,
       race_started: handleRaceStarted,
       countdown: handleCountdown,
+      player_connected: handlePlayerConnected,
+      player_joined: handlePlayerJoined,
       move_made: handleMoveMade,
+      puzzle_complete: handlePuzzleComplete,
       race_finished: handleRaceFinished,
       new_game_created: handleNewGameCreated,
       player_left_game: handlePlayerLeftGame,
@@ -257,6 +260,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     addMessage(`⏱️ Race starts in ${message.seconds}...`, 'info');
+  }
+
+  function handlePlayerConnected(message) {
+    addMessage(`${message.username} connected to the game`, 'info');
+  }
+
+  function handlePlayerJoined(message) {
+    addMessage(`${message.username} joined the game`, 'info');
+    updateGameInfo({ player1: message.username, player2: message.username, status: 'ready' });
+  }
+
+  function handlePuzzleComplete(message) {
+    addMessage(`Puzzle completed! Waiting for results...`, 'success');
   }
 
   // UI Update Functions
