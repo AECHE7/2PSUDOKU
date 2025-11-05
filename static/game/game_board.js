@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let mistakeCount = 0;
   let startTime = null;
   let elapsedInterval = null;
+  let lastInputCell = null; // Track last cell input for error handling
 
   // Sudoku validation state
   let currentBoard = [];
@@ -287,6 +288,19 @@ document.addEventListener('DOMContentLoaded', () => {
         errorMessage = '🎮 This game is full. Please create or join another game.';
       } else if (errorMessage === 'Cannot join this game') {
         errorMessage = '❌ Unable to join this game. It may be full or have connection issues.';
+      } else if (errorMessage === 'Invalid move - conflicts with existing numbers') {
+        errorMessage = '❌ Invalid move - number already exists in row, column, or box';
+        
+        // Clear the last invalid input from the board
+        if (lastInputCell) {
+          console.log('🧹 Clearing invalid input from cell:', lastInputCell);
+          lastInputCell.value = '';
+          lastInputCell.classList.remove('incorrect');
+          lastInputCell.classList.add('incorrect');
+          setTimeout(() => {
+            if (lastInputCell) lastInputCell.classList.remove('incorrect');
+          }, 500);
+        }
       }
       addMessage(`Error: ${errorMessage}`, 'error');
       
@@ -391,6 +405,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // Track this move for analysis
       trackMove(row, col, value, isValidMove);
       
+      // Store reference to this cell for error handling
+      lastInputCell = e.target;
+      
       if (isValidMove) {
         Logger.debug('✅ Valid move - adding correct class');
         e.target.classList.add('correct');
@@ -462,7 +479,13 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Board check:', { isComplete, isValid, gameFinished });
 
     if (isComplete && isValid && !gameFinished) {
-      console.log('Auto-submitting solution...');
+      console.log('🎉 PUZZLE COMPLETE! Auto-submitting solution...');
+      console.log('📊 Completion details:', {
+        isComplete,
+        isValid,
+        gameFinished,
+        cellsFilled: document.querySelectorAll('.cell-input[value]:not([value=""])').length
+      });
       autoSubmitSolution();
     }
   });
@@ -634,9 +657,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const timeString = `${mm}:${ss}`;
 
         // Update ALL three timer displays using cached elements
-        cachedTimerElements.timer1.textContent = timeString;
-        cachedTimerElements.timer2.textContent = timeString;
-        cachedTimerElements.elapsedTimer.textContent = timeString;
+        if (cachedTimerElements.timer1) cachedTimerElements.timer1.textContent = timeString;
+        if (cachedTimerElements.timer2) cachedTimerElements.timer2.textContent = timeString;
+        if (cachedTimerElements.elapsedTimer) cachedTimerElements.elapsedTimer.textContent = timeString;
       }, 500);
 
       console.log('✅ Timer interval started successfully!');
@@ -649,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Retry mechanism with exponential backoff
-    const maxRetries = 10;
+    const maxRetries = 15;
     let retryIndex = 0;
 
     const retryTimer = setInterval(() => {
@@ -658,14 +681,13 @@ document.addEventListener('DOMContentLoaded', () => {
         clearInterval(retryTimer);
         if (retryIndex >= maxRetries) {
           console.error('❌ Failed to start timer after maximum retries');
-          addMessage('Timer failed to start. Please refresh the page.', 'error');
+
         }
       } else {
         retryIndex++;
       }
-    }, 200); // Check every 200ms
+    }, 300); // Check every 300ms with more retries
   }
-
   function stopTimers() {
     if (timerInterval) {
       clearInterval(timerInterval);
@@ -927,7 +949,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('✅ Game stats populated');
     }
 
-    // Show modal
+    // Show modal with improved fallback
     console.log('🎭 Attempting to show modal...');
     try {
       if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
@@ -940,30 +962,32 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('✅ Bootstrap modal shown!');
       } else {
         console.warn('⚠️ Bootstrap not loaded, using fallback...');
-        // Fallback: show modal manually with backdrop
-        const backdrop = document.createElement('div');
-        backdrop.className = 'modal-backdrop fade show';
-        backdrop.id = 'modal-backdrop';
-        document.body.appendChild(backdrop);
-
+        // Force fallback modal display
         modal.style.display = 'block';
         modal.classList.add('show');
         modal.setAttribute('aria-hidden', 'false');
         document.body.classList.add('modal-open');
 
-        // Add backdrop click handling
-        backdrop.addEventListener('click', (e) => {
-          if (e.target === backdrop) {
-            // Don't close modal on backdrop click (game finished state)
-          }
-        });
+        // Create backdrop if it doesn't exist
+        let backdrop = document.getElementById('modal-backdrop');
+        if (!backdrop) {
+          backdrop = document.createElement('div');
+          backdrop.className = 'modal-backdrop fade show';
+          backdrop.id = 'modal-backdrop';
+          document.body.appendChild(backdrop);
+        }
+
+        console.log('✅ Fallback modal shown manually!');
       }
     } catch (error) {
       console.error('❌ Error showing modal:', error);
       console.error('Stack trace:', error.stack);
-      // Simple fallback
-      const message = `Game Over! ${isWinner ? '🏆 YOU WON!' : data.winner_username + ' won!'} Time: ${data.winner_time}`;
-      alert(message);
+      // Force simple modal display
+      modal.style.display = 'block';
+      modal.classList.add('show');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('modal-open');
+      console.log('✅ Forced modal display as last resort!');
     }
 
     console.log('═══════════════════════════════════════');
