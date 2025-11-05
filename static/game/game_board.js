@@ -573,8 +573,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function startTimers(startTime) {
     console.log('🔥 startTimers() CALLED!');
     console.log('📅 Start time received:', startTime);
-    console.log('📅 Start time type:', typeof startTime);
-    console.log('📅 Start time value:', startTime);
     
     Logger.info(`Starting timers from: ${startTime}`);
     raceStartTime = startTime;
@@ -584,63 +582,56 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('🔍 Attempting to find timer elements...');
       const timer1 = document.getElementById('player1-timer');
       const timer2 = document.getElementById('player2-timer');
+      const elapsedTimer = document.getElementById('elapsed-time');
       
-      console.log('🔍 player1-timer element:', timer1);
-      console.log('🔍 player2-timer element:', timer2);
+      console.log('🔍 player1-timer:', timer1);
+      console.log('🔍 player2-timer:', timer2);
+      console.log('🔍 elapsed-time:', elapsedTimer);
       
-      if (!timer1 || !timer2) {
+      if (!timer1 || !timer2 || !elapsedTimer) {
         console.warn('⚠️ Timer elements not found yet, retrying...');
-        Logger.warn('Timer elements not found yet, retrying...');
         return false;
       }
       
-      console.log('✅ Timer elements found!');
-      Logger.info('Timer elements found, starting interval');
+      console.log('✅ All timer elements found!');
       
       // Clear any existing interval
       if (timerInterval) {
-        console.log('🔄 Clearing existing interval');
         clearInterval(timerInterval);
       }
       
-      console.log('⏰ Creating new timer interval...');
       timerInterval = setInterval(() => {
         const now = new Date();
         const elapsed = Math.max(0, Math.floor((now - raceStartTime) / 1000));
         const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
         const ss = String(elapsed % 60).padStart(2, '0');
+        const timeString = `${mm}:${ss}`;
         
-        timer1.textContent = `${mm}:${ss}`;
-        timer2.textContent = `${mm}:${ss}`;
-        console.log(`⏰ Timer updated: ${mm}:${ss}`);
+        // Update ALL three timer displays
+        timer1.textContent = timeString;
+        timer2.textContent = timeString;
+        elapsedTimer.textContent = timeString;
       }, 500);
       
       console.log('✅ Timer interval started successfully!');
-      Logger.info('Timer interval started successfully');
       return true;
     };
     
     // Try immediately first
-    console.log('🚀 Trying immediate timer initialization...');
     if (initTimer()) {
-      console.log('✅ Timer initialized immediately!');
       return;
     }
     
-    // If not ready, retry with increasing delays
-    console.log('⏳ Timer elements not ready, starting retry mechanism...');
+    // Retry mechanism
     const retryDelays = [100, 250, 500, 1000];
     let retryIndex = 0;
     
     const retryTimer = setInterval(() => {
-      console.log(`🔄 Retry attempt ${retryIndex + 1}/${retryDelays.length}`);
+      console.log(`🔄 Retry ${retryIndex + 1}/${retryDelays.length}`);
       if (initTimer() || retryIndex >= retryDelays.length) {
         clearInterval(retryTimer);
         if (retryIndex >= retryDelays.length) {
-          console.error('❌ Failed to start timer after all retries');
-          Logger.error('Failed to start timer after all retries');
-        } else {
-          console.log('✅ Timer initialized on retry!');
+          console.error('❌ Failed to start timer');
         }
       } else {
         retryIndex++;
@@ -1633,6 +1624,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (elapsedInterval) {
       console.log('⏰ Clearing existing elapsed timer interval');
+      clearInterval(elapsedInterval);
+    }
+    
+    startTime = new Date();
+    console.log('⏰ Set start time to:', startTime);
+    
+    elapsedInterval = setInterval(() => {
+      if (startTime) {
+        const elapsed = new Date() - startTime;
       clearInterval(elapsedInterval);
     }
     
