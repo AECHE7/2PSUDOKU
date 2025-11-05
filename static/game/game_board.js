@@ -773,11 +773,14 @@ document.addEventListener('DOMContentLoaded', () => {
   let gameFinished = false;
   
   function autoSubmitSolution() {
-    if (gameFinished) return; // Prevent multiple submissions
-    
+    if (gameFinished) {
+      Logger.warn('Game already submitted');
+      return; // Prevent multiple submissions
+    }
+
     console.log('🏁 AUTO-SUBMITTING SOLUTION!');
     console.log('⏰ Timestamp:', new Date().toISOString());
-    
+
     gameFinished = true;
     addMessage('🎉 Puzzle completed! Submitting solution...', 'success');
     
@@ -1545,6 +1548,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Game completion detection function
   function checkGameCompletion() {
+    // Don't check if game already finished
+    if (gameFinished) {
+      Logger.debug('Game already finished, skipping completion check');
+      return false;
+    }
+    
     Logger.debug('Checking game completion...');
     const playerBoard = document.getElementById('player-board');
     if (!playerBoard) {
@@ -1636,12 +1645,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleManualSubmit() {
     if (gameFinished) {
       Logger.warn('Game already submitted');
+      addMessage('Game already submitted', 'info');
       return;
     }
-    
+
     console.log('🏁 MANUAL SUBMIT CLICKED!');
     console.log('⏰ Timestamp:', new Date().toISOString());
-    
+
     Logger.info('Manual puzzle submission');
     gameFinished = true;
     
