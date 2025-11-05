@@ -755,9 +755,15 @@ document.addEventListener('DOMContentLoaded', () => {
       gameStatusEl.style.color = 'orange';
     }
     
+    // Calculate completion time
+    const completionTime = raceStartTime ? new Date() - raceStartTime : 0;
+    
     console.log('📤 Sending completion message to server...');
-    // Submit the solution
-    const success = safeSend({ type: 'complete' });
+    // Submit the solution with completion time
+    const success = safeSend({ 
+      type: 'complete',
+      completion_time: completionTime
+    });
     console.log('✅ Complete message sent:', success);
     
     if (!success) {

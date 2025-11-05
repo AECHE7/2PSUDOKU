@@ -156,7 +156,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             
             print(f"📊 Current game status: {game_status}, Start time: {start_time_iso}")
             
-            if game_status in ['in_progress', 'racing'] and start_time_iso:
+            if game_status == 'in_progress' and start_time_iso:
                 print(f"🏁 Race already in progress, sending race_started to reconnecting player")
                 puzzle = await self.get_puzzle(game_id)
                 await self.safe_send({
@@ -596,9 +596,9 @@ class GameConsumer(AsyncWebsocketConsumer):
         game = GameSession.objects.get(id=game_id)
         if not game.start_time:
             game.start_time = timezone.now()
-            game.status = 'racing'  # Use 'racing' status consistently
+            game.status = 'in_progress'  # Use valid status from STATUS_CHOICES
             game.save()
-            print(f"✅ Start time set and status changed to 'racing': {game.start_time.isoformat()}")
+            print(f"✅ Start time set and status changed to 'in_progress': {game.start_time.isoformat()}")
         return game.start_time.isoformat() if game.start_time else None
 
     @database_sync_to_async
@@ -666,12 +666,13 @@ class GameConsumer(AsyncWebsocketConsumer):
         # Generate new game code
         code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
         
-        # Create new puzzle
+        # Create new puzzle with solution
         puzzle = SudokuPuzzle.generate_puzzle(difficulty)
         board_data = {
-            'puzzle': puzzle.to_dict(),
-            'player1_board': puzzle.to_dict(),
-            'player2_board': puzzle.to_dict(),
+            'puzzle': puzzle.board,  # The puzzle with holes
+            'solution': puzzle.solution,  # The complete solution
+            'player1_board': [row[:] for row in puzzle.board],
+            'player2_board': [row[:] for row in puzzle.board],
         }
         
         # Create new game session
@@ -725,9 +726,9 @@ class GameConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def start_game(self, game_id):
-        """Mark game as racing."""
+        """Mark game as in progress."""
         game = GameSession.objects.get(id=game_id)
-        game.status = 'racing'
+        game.status = 'in_progress'
         game.save()
     
     @database_sync_to_async
