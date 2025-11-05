@@ -89,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     processMessageQueue();
     
     // Send join message
+    console.log('📤 Sending join_game message with playerId:', playerId);
     safeSend({
       type: 'join_game',
       playerId: playerId,
@@ -96,13 +97,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Request current board state after connection is established
     setTimeout(() => {
+      console.log('📤 Requesting board state...');
       safeSend({ type: 'get_board' });
     }, 500);
   };
   
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    console.log('WebSocket message received:', data);
+    console.log('📨 WebSocket message received:', data.type, data);
     
     if (data.type === 'notification') {
       addMessage(data.message);
@@ -1148,36 +1150,7 @@ document.addEventListener('DOMContentLoaded', () => {
     conflictCells.forEach(cell => cell.classList.remove('conflict'));
   }
 
-  function clearValidationHighlights() {
-    const playerBoard = document.getElementById('player-board');
-    if (!playerBoard) return;
-    const validationCells = playerBoard.querySelectorAll('.cell-input.correct, .cell-input.incorrect, .cell-input.invalid');
-    validationCells.forEach(cell => {
-      cell.classList.remove('correct', 'incorrect', 'invalid');
-    });
-  }
-
-  function validateAllCells() {
-    const playerBoard = document.getElementById('player-board');
-    if (!playerBoard) return;
-    const cells = playerBoard.querySelectorAll('.cell-input');
-    
-    // Clear existing invalid states
-    cells.forEach(cell => cell.classList.remove('invalid'));
-    
-    // Check each filled cell for validity
-    cells.forEach((cell, index) => {
-      if (cell.value && cell.value !== '') {
-        const row = Math.floor(index / 9);
-        const col = index % 9;
-        const value = parseInt(cell.value);
-        
-        if (!validateMove(row, col, value)) {
-          cell.classList.add('invalid');
-        }
-      }
-    });
-  }
+  // Removed unused clearValidationHighlights and validateAllCells functions
 
   // Test function for validation - can be called from browser console
   window.testValidation = function() {
@@ -1303,42 +1276,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Function to trigger validation on board load/update
   window.validateBoard = validateEntireBoard;
 
-  // Function to validate and highlight all invalid entries on the board
-  window.validateEntireBoard = function() {
-    console.log('🔍 Validating entire board...');
-    const playerBoard = document.getElementById('player-board');
-    if (!playerBoard) {
-      console.error('❌ Player board not found!');
-      return;
-    }
-    
-    const cells = playerBoard.querySelectorAll('.cell-input');
-    let invalidCount = 0;
-    
-    // Clear all existing validation classes first
-    cells.forEach(cell => {
-      cell.classList.remove('correct', 'incorrect', 'invalid', 'conflict');
-    });
-    
-    // Check each filled cell
-    cells.forEach((cell, index) => {
-      if (cell.value && cell.value !== '' && !cell.disabled) {
-        const row = Math.floor(index / 9);
-        const col = index % 9;
-        const value = parseInt(cell.value);
-        
-        if (!validateMove(row, col, value)) {
-          cell.classList.add('invalid');
-          highlightConflictingCells(row, col, value);
-          invalidCount++;
-          console.log(`❌ Invalid entry found at [${row}, ${col}]: ${value}`);
-        }
-      }
-    });
-    
-    console.log(`✅ Board validation complete. Found ${invalidCount} invalid entries.`);
-    return invalidCount;
-  };
+  // Make validateEntireBoard function available globally
+  window.validateEntireBoard = validateEntireBoard;
 
   // Move tracking and analysis functions
   function trackMove(row, col, value, isValid) {
@@ -1486,12 +1425,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Auto-validate board when page loads
-  document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
+  // Auto-validate board when page loads (already inside DOMContentLoaded, no need for another listener)
+  setTimeout(() => {
+    if (typeof validateEntireBoard === 'function') {
       validateEntireBoard();
-    }, 1000);
-  });
+    }
+  }, 1000);
 
   // Statistics Functions
   function updateMistakeCount() {
