@@ -146,7 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
       // If race already started, start timers
       if (data.start_time) {
         startTimers(new Date(data.start_time));
-        startElapsedTimer();
       }
     } else if (data.type === 'move') {
       // Simple move notification - focus on player's own game
@@ -198,10 +197,6 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('🔄 About to call startTimers()...');
       startTimers(startTime);
       console.log('✅ startTimers() call completed');
-      
-      console.log('🔄 About to call startElapsedTimer()...');
-      startElapsedTimer();
-      console.log('✅ startElapsedTimer() call completed');
       
       if (data.puzzle) {
         console.log('🧩 Updating board with puzzle data');
@@ -569,6 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Timers
   let timerInterval = null;
   let raceStartTime = null;
+  let cachedTimerElements = null;  // Cache timer DOM elements
 
   function startTimers(startTime) {
     console.log('🔥 startTimers() CALLED!');
@@ -580,20 +576,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // Function to check and start timer
     const initTimer = () => {
       console.log('🔍 Attempting to find timer elements...');
-      const timer1 = document.getElementById('player1-timer');
-      const timer2 = document.getElementById('player2-timer');
-      const elapsedTimer = document.getElementById('elapsed-time');
       
-      console.log('🔍 player1-timer:', timer1);
-      console.log('🔍 player2-timer:', timer2);
-      console.log('🔍 elapsed-time:', elapsedTimer);
-      
-      if (!timer1 || !timer2 || !elapsedTimer) {
-        console.warn('⚠️ Timer elements not found yet, retrying...');
-        return false;
+      // Use cached elements if available
+      if (!cachedTimerElements) {
+        const timer1 = document.getElementById('player1-timer');
+        const timer2 = document.getElementById('player2-timer');
+        const elapsedTimer = document.getElementById('elapsed-time');
+        
+        console.log('🔍 player1-timer:', timer1);
+        console.log('🔍 player2-timer:', timer2);
+        console.log('🔍 elapsed-time:', elapsedTimer);
+        
+        if (!timer1 || !timer2 || !elapsedTimer) {
+          console.warn('⚠️ Timer elements not found yet, retrying...');
+          return false;
+        }
+        
+        // Cache the elements for faster access
+        cachedTimerElements = { timer1, timer2, elapsedTimer };
+        console.log('✅ Timer elements cached!');
+      } else {
+        console.log('✅ Using cached timer elements!');
       }
-      
-      console.log('✅ All timer elements found!');
       
       // Clear any existing interval
       if (timerInterval) {
@@ -607,10 +611,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const ss = String(elapsed % 60).padStart(2, '0');
         const timeString = `${mm}:${ss}`;
         
-        // Update ALL three timer displays
-        timer1.textContent = timeString;
-        timer2.textContent = timeString;
-        elapsedTimer.textContent = timeString;
+        // Update ALL three timer displays using cached elements
+        cachedTimerElements.timer1.textContent = timeString;
+        cachedTimerElements.timer2.textContent = timeString;
+        cachedTimerElements.elapsedTimer.textContent = timeString;
       }, 500);
       
       console.log('✅ Timer interval started successfully!');
@@ -726,7 +730,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function autoSubmitSolution() {
     if (gameFinished) return; // Prevent multiple submissions
     
-    console.log('Auto-submitting solution!');
+    console.log('🏁 AUTO-SUBMITTING SOLUTION!');
+    console.log('⏰ Timestamp:', new Date().toISOString());
+    
     gameFinished = true;
     addMessage('🎉 Puzzle completed! Submitting solution...', 'success');
     
@@ -736,16 +742,32 @@ document.addEventListener('DOMContentLoaded', () => {
       finishBtn.style.display = 'none';
     }
     
-    // Disable all inputs
+    // Disable all inputs immediately
     disableAllInputs();
     
+    // Stop timer immediately
+    stopTimers();
+    
+    // Show immediate feedback
+    const gameStatusEl = document.getElementById('game-status');
+    if (gameStatusEl) {
+      gameStatusEl.innerHTML = '⏳ Checking solution...';
+      gameStatusEl.style.color = 'orange';
+    }
+    
+    console.log('📤 Sending completion message to server...');
     // Submit the solution
     const success = safeSend({ type: 'complete' });
-    console.log('Complete message sent:', success);
+    console.log('✅ Complete message sent:', success);
     
     if (!success) {
+      console.error('❌ Failed to send completion message');
       addMessage('❌ Failed to submit solution. Check connection.', 'error');
       gameFinished = false; // Allow retry
+      
+      // Re-enable if failed
+      const inputs = document.querySelectorAll('.cell-input');
+      inputs.forEach(input => input.disabled = false);
     }
   }
 
@@ -762,7 +784,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleGameFinished(data) {
     gameFinished = true;
     stopTimers();
-    stopElapsedTimer();
     disableAllInputs();
     clearHighlights();
     
@@ -1515,40 +1536,59 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
+    console.log('🏁 MANUAL SUBMIT CLICKED!');
+    console.log('⏰ Timestamp:', new Date().toISOString());
+    
     Logger.info('Manual puzzle submission');
     gameFinished = true;
     
-    // Disable submit button
+    // Disable submit button immediately
     const submitBtn = document.getElementById('submit-puzzle-btn');
     if (submitBtn) {
       submitBtn.disabled = true;
       submitBtn.innerHTML = '⏳ Submitting...';
     }
     
-    // Disable all inputs
+    // Disable all inputs immediately
     disableAllInputs();
     
-    // Stop timer
+    // Stop timer immediately
     stopTimers();
+    
+    // Show immediate feedback
+    const gameStatusEl = document.getElementById('game-status');
+    if (gameStatusEl) {
+      gameStatusEl.innerHTML = '⏳ Checking solution...';
+      gameStatusEl.style.color = 'orange';
+    }
+    
+    addMessage('📤 Submitting your solution...', 'info');
     
     // Calculate completion time
     const completionTime = raceStartTime ? new Date() - raceStartTime : 0;
     
+    console.log('📤 Sending completion message to server...');
     // Send completion to server
     const success = safeSend({ 
       type: 'complete',
       completion_time: completionTime
     });
     
+    console.log('✅ Complete message sent:', success);
+    
     if (success) {
       addMessage('🎉 Puzzle submitted! Waiting for results...', 'success');
     } else {
+      console.error('❌ Failed to send completion message');
       addMessage('❌ Failed to submit solution. Check connection.', 'error');
       gameFinished = false;
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = '✓ Submit Puzzle';
       }
+      // Re-enable inputs
+      const inputs = document.querySelectorAll('.cell-input');
+      inputs.forEach(input => input.disabled = false);
     }
   }
 
@@ -1561,7 +1601,7 @@ document.addEventListener('DOMContentLoaded', () => {
     gameStatistics.totalTime = startTime ? new Date() - startTime : 0;
     
     // Stop the timer
-    stopElapsedTimer();
+    stopTimers();
     
     // Get final move analysis
     const finalAnalysis = getMoveAnalysis();
@@ -1617,44 +1657,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const playerBoard = document.getElementById('player-board');
     const filledCells = playerBoard.querySelectorAll('.cell-input[value]:not([value=""])').length;
     document.getElementById('cells-filled').textContent = `${filledCells}/81`;
-  }
-
-  function startElapsedTimer() {
-    console.log('⏰ startElapsedTimer called');
-    
-    if (elapsedInterval) {
-      console.log('⏰ Clearing existing elapsed timer interval');
-      clearInterval(elapsedInterval);
-    }
-    
-    startTime = new Date();
-    console.log('⏰ Set start time to:', startTime);
-    
-    elapsedInterval = setInterval(() => {
-      if (startTime) {
-        const elapsed = new Date() - startTime;
-        const minutes = Math.floor(elapsed / 60000);
-        const seconds = Math.floor((elapsed % 60000) / 1000);
-        const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        
-        const elapsedEl = document.getElementById('elapsed-time');
-        if (elapsedEl) {
-          elapsedEl.textContent = timeString;
-          console.log('⏰ Updated elapsed-time:', timeString);
-        } else {
-          console.error('❌ elapsed-time element not found!');
-        }
-      }
-    }, 1000);
-    
-    console.log('✅ Elapsed timer interval set up successfully');
-  }
-
-  function stopElapsedTimer() {
-    if (elapsedInterval) {
-      clearInterval(elapsedInterval);
-      elapsedInterval = null;
-    }
   }
 
   // Initialize UI

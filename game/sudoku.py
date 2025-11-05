@@ -88,25 +88,36 @@ class SudokuPuzzle:
         return self._is_valid_move(row, col, num)
     
     def is_complete(self) -> bool:
-        """Check if the puzzle is completely filled."""
+        """Check if the puzzle is completely filled and valid."""
+        # First check if all cells are filled
         for row in self.board:
             if 0 in row:
                 return False
         return self._is_valid_solution()
     
     def _is_valid_solution(self) -> bool:
-        """Verify the entire board is a valid solution."""
-        for row in range(9):
-            for col in range(9):
-                num = self.board[row][col]
-                if num == 0:
+        """Verify the entire board is a valid solution using efficient set-based validation."""
+        # Check all rows have 1-9
+        for row in self.board:
+            if set(row) != set(range(1, 10)):
+                return False
+        
+        # Check all columns have 1-9
+        for col in range(9):
+            column = [self.board[row][col] for row in range(9)]
+            if set(column) != set(range(1, 10)):
+                return False
+        
+        # Check all 3x3 boxes have 1-9
+        for box_row in range(0, 9, 3):
+            for box_col in range(0, 9, 3):
+                box_nums = []
+                for r in range(box_row, box_row + 3):
+                    for c in range(box_col, box_col + 3):
+                        box_nums.append(self.board[r][c])
+                if set(box_nums) != set(range(1, 10)):
                     return False
-                # Temporarily remove to check if it's valid
-                self.board[row][col] = 0
-                if not self._is_valid_move(row, col, num):
-                    self.board[row][col] = num
-                    return False
-                self.board[row][col] = num
+        
         return True
     
     def to_dict(self) -> dict:

@@ -380,22 +380,40 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     async def handle_puzzle_complete(self, data):
         """Handle a player's reported completion; verify and finalize result."""
+        print("🏁 PUZZLE COMPLETION REQUEST RECEIVED")
+        print(f"👤 Player: {self.user.username} (ID: {self.user.id})")
+        
         game_id = await self.get_game_id()
         if not game_id:
+            print("❌ Game not found!")
             await self.send(text_data=json.dumps({'error': 'Game not found'}))
             return
 
+        print(f"📝 Game ID: {game_id}")
+        print("🔍 Verifying player's board...")
+        
         # Verify player's board on server
         board = await self.get_player_board(game_id, self.user.id)
+        print(f"📋 Board retrieved: {len(board)} rows")
+        
         puzzle = SudokuPuzzle.from_dict({'board': board})
-        if not puzzle.is_complete():
+        print("🧩 Checking if puzzle is complete...")
+        
+        is_complete = puzzle.is_complete()
+        print(f"✅ Puzzle complete: {is_complete}")
+        
+        if not is_complete:
+            print("❌ Board is not valid/complete!")
             await self.send(text_data=json.dumps({'error': 'Board is not a valid completed solution'}))
             return
 
+        print("🏆 Finalizing result...")
         # Finalize result (db-side)
         result = await self.finalize_result(game_id, self.user.id)
+        print(f"🎉 Result finalized: {result}")
 
-        # Broadcast finish
+        print("📡 Broadcasting race_finished to all players...")
+        # Broadcast finish immediately
         await self.channel_layer.group_send(
             self.group_name,
             {
