@@ -217,12 +217,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!e.target.classList.contains('cell-input')) return;
     if (e.target.disabled) return;
     
-    const cell = e.target.closest('.sudoku-cell');
-    if (!cell) return;
+    // Get row/col from input element or its parent cell
+    let row, col;
+    if (e.target.dataset.row !== undefined && e.target.dataset.col !== undefined) {
+      row = parseInt(e.target.dataset.row);
+      col = parseInt(e.target.dataset.col);
+    } else {
+      const cell = e.target.closest('.sudoku-cell');
+      if (!cell) return;
+      row = parseInt(cell.dataset.row);
+      col = parseInt(cell.dataset.col);
+    }
     
-    const row = parseInt(cell.dataset.row);
-    const col = parseInt(cell.dataset.col);
     const value = parseInt(e.target.value);
+    console.log(`Input change detected: Row ${row}, Col ${col}, Value ${value}`);
+    
+    // Check if we have valid row/col values
+    if (isNaN(row) || isNaN(col)) {
+      console.error('Invalid row/col values:', { row, col });
+      return;
+    }
     
     if (value && value >= 1 && value <= 9) {
       // Clear any previous validation classes for this cell
@@ -232,11 +246,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const isValidMove = validateMove(row, col, value);
       
       if (isValidMove) {
+        console.log('✅ Valid move - adding correct class');
         e.target.classList.add('correct');
-        setTimeout(() => e.target.classList.remove('correct'), 500);
+        setTimeout(() => {
+          e.target.classList.remove('correct');
+          console.log('Removed correct class');
+        }, 500);
         // Clear any conflict highlights when a valid move is made
         clearConflictHighlights();
       } else {
+        console.log('❌ Invalid move - adding incorrect class');
         // Show immediate feedback with shake animation
         e.target.classList.add('incorrect');
         
@@ -250,6 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
           e.target.classList.remove('incorrect');
           e.target.classList.add('invalid'); // Permanent red state like Sudoku.com
+          console.log('Changed to permanent invalid state');
         }, 500);
         
         // Keep conflict highlights visible longer
@@ -900,14 +920,22 @@ document.addEventListener('DOMContentLoaded', () => {
   function validateMove(row, col, value) {
     // Basic client-side validation on player's board only
     const playerBoard = document.getElementById('player-board');
-    if (!playerBoard) return true; // if no player board in DOM, skip strict checks
+    if (!playerBoard) {
+      console.log('No player board found for validation');
+      return true; // if no player board in DOM, skip strict checks
+    }
     const cells = playerBoard.querySelectorAll('.cell-input');
+    
+    console.log(`Validating move: Row ${row}, Col ${col}, Value ${value}`);
     
     // Check row
     for (let c = 0; c < 9; c++) {
       if (c !== col) {
         const cell = cells[row * 9 + c];
-        if (cell.value == value) return false;
+        if (cell && cell.value == value) {
+          console.log(`Row conflict found at col ${c} with value ${cell.value}`);
+          return false;
+        }
       }
     }
     
@@ -915,7 +943,10 @@ document.addEventListener('DOMContentLoaded', () => {
     for (let r = 0; r < 9; r++) {
       if (r !== row) {
         const cell = cells[r * 9 + col];
-        if (cell.value == value) return false;
+        if (cell && cell.value == value) {
+          console.log(`Column conflict found at row ${r} with value ${cell.value}`);
+          return false;
+        }
       }
     }
     
@@ -927,11 +958,15 @@ document.addEventListener('DOMContentLoaded', () => {
       for (let c = boxCol; c < boxCol + 3; c++) {
         if (r !== row || c !== col) {
           const cell = cells[r * 9 + c];
-          if (cell && cell.value == value) return false;
+          if (cell && cell.value == value) {
+            console.log(`Box conflict found at row ${r}, col ${c} with value ${cell.value}`);
+            return false;
+          }
         }
       }
     }
     
+    console.log('Move is valid');
     return true;
   }
 
@@ -1013,6 +1048,34 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // Test function for validation - can be called from browser console
+  window.testValidation = function() {
+    console.log('Testing Sudoku validation...');
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) {
+      console.error('Player board not found!');
+      return;
+    }
+    
+    const cells = playerBoard.querySelectorAll('.cell-input');
+    console.log(`Found ${cells.length} cells`);
+    
+    // Test case 1: Put same number in same row
+    if (cells.length >= 18) {
+      cells[0].value = '5'; // Row 0, Col 0
+      cells[1].value = '5'; // Row 0, Col 1 - should be invalid
+      
+      // Trigger validation manually
+      const event = new Event('change');
+      cells[1].dispatchEvent(event);
+      
+      console.log('Test 1: Same number in row - Cell should be red');
+      console.log('Cell 1 classes:', cells[1].className);
+    }
+    
+    return 'Check console and visual feedback in the game board';
+  };
 
   // Statistics Functions
   function updateMistakeCount() {
