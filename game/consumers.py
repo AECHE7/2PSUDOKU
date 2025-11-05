@@ -466,6 +466,9 @@ class GameConsumer(AsyncWebsocketConsumer):
                     try:
                         state = await self.game_state_manager.get_current_state_async()
                         puzzle = getattr(state, 'puzzle', [])
+                    except Exception as e:
+                        logger.error(f"Error getting puzzle state: {e}", exc_info=True)
+                        puzzle = []
 
                 race_started_msg = {
                     'type': MessageType.RACE_STARTED,
@@ -473,6 +476,9 @@ class GameConsumer(AsyncWebsocketConsumer):
                     'puzzle': puzzle
                 }
                 await self.send(text_data=json.dumps(race_started_msg))
+            except Exception as e:
+                logger.error(f"Error in race_event: {e}", exc_info=True)
+                await self.send_error("Failed to process race event")
             except Exception as e:
                 logger.error(f"Error in race_event: {e}", exc_info=True)
                 await self.send_error("Failed to process race event")
