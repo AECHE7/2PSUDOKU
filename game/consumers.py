@@ -35,33 +35,72 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Basic attributes
         self.game_code: Optional[str] = None
         self.game_state_manager: Optional[GameStateManager] = None
         self.user: Optional[User] = None
-        self.is_connected = False
-        self.game_session: Optional[GameSession] = None  # Add game_session attribute
+        self.game_session: Optional[GameSession] = None
+        self.group_name: Optional[str] = None
+        self.is_connected: bool = False
+        self.disconnecting: bool = False
+        # Connection management
+        self._connection_lock = asyncio.Lock()
+        self._state_lock = asyncio.Lock()
+        # Retry configuration
+        self.max_retries = 3
+        self.retry_delay = 1  # seconds
 
     async def connect(self):
         """Handle WebSocket connection."""
-        self.game_code = self.scope['url_route']['kwargs']['code']
-        self.user = self.scope['user']
+        async with self._connection_lock:
+            try:
+                # Extract connection parameters
+                self.game_code = self.scope['url_route']['kwargs']['code']
+                self.user = self.scope['user']
+                self.group_name = f'game_{self.game_code}'
 
-        if not self.user.is_authenticated:
-            await self.close(code=4001)  # Unauthorized
-            return
+                if not self.user.is_authenticated:
+                    logger.warning(f"Unauthorized connection attempt for game {self.game_code}")
+                    await self.close(code=4001)  # Unauthorized
+                    return
 
-        # Initialize game state manager
-        try:
-            self.game_session = await self.get_game_session()
-            if not self.game_session:
-                await self.close(code=4004)  # Game not found
+                # Initialize game session with retries
+                for attempt in range(self.max_retries):
+                    try:
+                        self.game_session = await self.get_game_session()
+                        if self.game_session:
+                            break
+                        await asyncio.sleep(self.retry_delay)
+                    except Exception as e:
+                        if attempt == self.max_retries - 1:
+                            raise
+                        logger.warning(f"Retry {attempt + 1}/{self.max_retries} getting game session: {e}")
+                        await asyncio.sleep(self.retry_delay)
+
+                if not self.game_session:
+                    logger.error(f"Game not found: {self.game_code}")
+                    await self.close(code=4004)  # Game not found
+                    return
+
+                # Initialize game state manager
+                self.game_state_manager = GameStateManager(self.game_session)
+
+                # Join the game group
+                await self.channel_layer.group_add(self.group_name, self.channel_name)
+                
+                # Accept the connection
+                await self.accept()
+                self.is_connected = True
+
+                logger.info(f"Player {self.user.username} connected to game {self.game_code}")
+
+                # Send initial state
+                await self.send_state_sync()
+
+            except Exception as e:
+                logger.error(f"Failed to initialize game state: {e}", exc_info=True)
+                await self.close(code=5000)  # Internal error
                 return
-
-            self.game_state_manager = GameStateManager(self.game_session)
-        except Exception as e:
-            logger.error(f"Failed to initialize game state: {e}")
-            await self.close(code=5000)  # Internal error
-            return
 
         # Join game group
         self.group_name = f'game_{self.game_code}'
@@ -88,24 +127,47 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection."""
-        self.is_connected = False
+        async with self._connection_lock:
+            try:
+                self.disconnecting = True
+                self.is_connected = False
 
-        if hasattr(self, 'group_name'):
-            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+                # Clean up group membership
+                if self.group_name:
+                    try:
+                        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+                    except Exception as e:
+                        logger.error(f"Error discarding from group: {e}")
 
-        # Notify other players
-        if self.user and self.game_code:
-            await self.channel_layer.group_send(
-                self.group_name,
-                {
-                    'type': 'player_event',
-                    'event_type': 'disconnected',
-                    'username': self.user.username,
-                    'user_id': self.user.id,
-                }
-            )
+                # Notify other players if this was an established connection
+                if self.user and self.game_code and not close_code in [4001, 4004]:  # Skip for auth/not found
+                    try:
+                        await self.channel_layer.group_send(
+                            self.group_name,
+                            {
+                                'type': 'player_event',
+                                'event_type': 'disconnected',
+                                'username': self.user.username,
+                                'user_id': self.user.id,
+                                'code': close_code
+                            }
+                        )
+                    except Exception as e:
+                        logger.error(f"Error sending disconnect notification: {e}")
 
-        logger.info(f"Player {self.user.username} disconnected from game {self.game_code}")
+                # Update game state if needed
+                if self.game_session and self.game_session.status == 'in_progress':
+                    try:
+                        await self.handle_player_disconnect()
+                    except Exception as e:
+                        logger.error(f"Error handling player disconnect state: {e}")
+
+                logger.info(f"Player {self.user.username if self.user else 'Unknown'} disconnected from game {self.game_code} with code {close_code}")
+
+            except Exception as e:
+                logger.error(f"Error in disconnect handler: {e}", exc_info=True)
+            finally:
+                self.disconnecting = False
 
     async def receive(self, text_data=None, bytes_data=None):
         """Handle incoming WebSocket messages."""
@@ -416,14 +478,27 @@ class GameConsumer(AsyncWebsocketConsumer):
 
     async def send_state_sync(self):
         """Send current game state to client."""
-        try:
-            state_messages = await self.get_state_messages_async(self.user.id)
+        async with self._state_lock:
+            try:
+                # Ensure we have a valid game session
+                if not self.game_session:
+                    self.game_session = await self.get_game_session()
+                    if not self.game_session:
+                        raise ValueError("No game session available")
 
-            for message in state_messages:
-                await self.send(text_data=json.dumps(message))
+                # Get and send state messages
+                state_messages = await self.get_state_messages_async(self.user.id)
+                
+                # Send messages only if still connected
+                if self.is_connected and not self.disconnecting:
+                    for message in state_messages:
+                        await self.send(text_data=json.dumps(message))
+                        await asyncio.sleep(0.01)  # Small delay to prevent flooding
 
-        except Exception as e:
-            logger.error(f"Error sending state sync: {e}")
+            except Exception as e:
+                logger.error(f"Error sending state sync: {e}", exc_info=True)
+                if not self.disconnecting:
+                    await self.send_error("Failed to sync game state")
 
     async def check_auto_completion(self):
         """Check if player's puzzle is complete after a move."""
@@ -737,37 +812,51 @@ class GameConsumer(AsyncWebsocketConsumer):
             return None
 
     @database_sync_to_async
-    def mark_game_abandoned(self):
-        """Mark game as abandoned."""
+    def handle_player_disconnect(self):
+        """Handle player disconnection and update game state."""
         try:
             with transaction.atomic():
+                # Reload game session to get latest state
                 game = GameSession.objects.select_for_update().get(code=self.game_code)
 
-                game.status = 'abandoned'
-                game.end_time = timezone.now()
+                # Different handling based on game status
+                if game.status == 'in_progress':
+                    if game.player1 and game.player2:
+                        # Mark game as abandoned and create forfeit result
+                        game.status = 'abandoned'
+                        game.end_time = timezone.now()
 
-                # Create forfeit result if game was in progress
-                if game.status == 'in_progress' and game.player1 and game.player2:
-                    from .models import GameResult
+                        from .models import GameResult
+                        if game.player1.id == self.user.id:
+                            winner = game.player2
+                            loser = game.player1
+                        else:
+                            winner = game.player1
+                            loser = game.player2
 
-                    if game.player1.id == self.user.id:
-                        winner = game.player2
-                        loser = game.player1
-                    else:
-                        winner = game.player1
-                        loser = game.player2
+                        GameResult.objects.create(
+                            game=game,
+                            winner=winner,
+                            loser=loser,
+                            winner_time=timezone.now() - (game.start_time or timezone.now()),
+                            difficulty=game.difficulty,
+                            result_type='forfeit'
+                        )
+                        game.winner = winner
 
-                    GameResult.objects.create(
-                        game=game,
-                        winner=winner,
-                        loser=loser,
-                        winner_time=timezone.now() - (game.start_time or timezone.now()),
-                        difficulty=game.difficulty,
-                        result_type='forfeit'
-                    )
-                    game.winner = winner
+                elif game.status == 'waiting':
+                    # Remove disconnected player if they were the only one
+                    if game.player1 and game.player1.id == self.user.id:
+                        game.player1 = None
+                    elif game.player2 and game.player2.id == self.user.id:
+                        game.player2 = None
+                    
+                    if not game.player1 and not game.player2:
+                        game.status = 'abandoned'
 
                 game.save()
+                self.game_session = game
 
         except Exception as e:
-            logger.error(f"Error marking game abandoned: {e}")
+            logger.error(f"Error handling player disconnect: {e}", exc_info=True)
+            raise
