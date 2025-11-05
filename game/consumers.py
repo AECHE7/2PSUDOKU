@@ -461,11 +461,11 @@ class GameConsumer(AsyncWebsocketConsumer):
         if event_type == 'started':
             try:
                 # Send race started message
-            puzzle = []
-            if self.game_state_manager:
-                try:
-                    state = await self.game_state_manager.get_current_state_async()
-                    puzzle = getattr(state, 'puzzle', [])
+                puzzle = []
+                if self.game_state_manager:
+                    try:
+                        state = await self.game_state_manager.get_current_state_async()
+                        puzzle = getattr(state, 'puzzle', [])
 
                 race_started_msg = {
                     'type': MessageType.RACE_STARTED,
