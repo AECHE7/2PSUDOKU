@@ -13,6 +13,22 @@
     padding: 20px;
   }
 
+  /* Player Status */
+  .current-player {
+    border-color: #2196f3 !important;
+    background-color: #f0f8ff;
+  }
+
+  .players-header .player {
+    min-width: 150px;
+  }
+
+  .player-timer {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    color: #2196f3;
+  }
+
   /* Top Navigation Bar */
   .top-nav {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -105,14 +121,15 @@
   .cell-input {
     width: 100%;
     height: 50px;
-    border: none;
+    border: 1px solid #e0e0e0;
     text-align: center;
     font-size: 1.4rem;
     font-weight: bold;
-    background: transparent;
+    background: white;
     transition: all 0.3s ease;
     outline: none;
     cursor: pointer;
+    color: #333;
   }
 
   .cell-input:hover {
@@ -135,8 +152,9 @@
 
   .cell-input.prefilled {
     background-color: #f5f5f5;
-    color: #333;
+    color: #2c3e50;
     font-weight: 900;
+    border-color: #bdc3c7;
   }
 
   .cell-input.correct {
@@ -402,23 +420,35 @@
   <div class="sudoku-container">
     <!-- Players Header -->
     <div class="players-header mb-3 d-flex justify-content-between align-items-center">
-      <div class="player {% if is_player1 %}current-player{% endif %} text-center">
-        <h5>{{ game.player1.username }}</h5>
-        <div class="player-timer" id="player1-timer">00:00</div>
-        <small class="player-status">{% if is_player1 %}You{% else %}Opponent{% endif %}</small>
+      <div class="player {% if is_player1 %}current-player{% endif %} text-center p-3 border rounded">
+        <h5 class="mb-1">
+          {{ game.player1.username }}
+          {% if is_player1 %}<span class="badge bg-primary ms-1">You</span>{% endif %}
+        </h5>
+        <div class="player-timer h6" id="player1-timer">00:00</div>
+        <small class="player-status text-muted" id="player1-status">
+          {% if game.status == 'racing' %}Racing{% else %}Ready{% endif %}
+        </small>
       </div>
       
-      <div class="vs h4 mb-0">VS</div>
+      <div class="vs h3 mb-0 mx-3">
+        <span class="badge bg-secondary">VS</span>
+      </div>
       
-      <div class="player {% if is_player2 %}current-player{% endif %} text-center">
+      <div class="player {% if is_player2 %}current-player{% endif %} text-center p-3 border rounded">
         {% if game.player2 %}
-          <h5>{{ game.player2.username }}</h5>
-          <div class="player-timer" id="player2-timer">00:00</div>
-          <small class="player-status">{% if is_player2 %}You{% else %}Opponent{% endif %}</small>
+          <h5 class="mb-1">
+            {{ game.player2.username }}
+            {% if is_player2 %}<span class="badge bg-primary ms-1">You</span>{% endif %}
+          </h5>
+          <div class="player-timer h6" id="player2-timer">00:00</div>
+          <small class="player-status text-muted" id="player2-status">
+            {% if game.status == 'racing' %}Racing{% else %}Ready{% endif %}
+          </small>
         {% else %}
-          <h5>Waiting...</h5>
-          <div class="player-timer">--:--</div>
-          <small class="player-status">Waiting for player...</small>
+          <h5 class="mb-1 text-muted">Waiting...</h5>
+          <div class="player-timer h6 text-muted">--:--</div>
+          <small class="player-status text-muted">Need player 2</small>
         {% endif %}
       </div>
     </div>
@@ -426,14 +456,38 @@
     <!-- Player's Interactive Sudoku Grid -->
     <div class="board-section">
       <h6 class="text-center mb-2">Your Board</h6>
-      {% if board %}
+      {% if board and board|length > 0 %}
         <table class="sudoku-grid" id="player-board">
           <tbody>
             {% for row in board %}
               <tr class="sudoku-row">
                 {% for cell in row %}
                   <td class="sudoku-cell" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
-                    {% if cell != 0 %}
+                    {% if cell != 0 and cell != "0" and cell %}
+                      <input type="number" min="1" max="9" class="cell-input prefilled" value="{{ cell }}" disabled readonly 
+                             aria-label="Prefilled cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}" 
+                             tabindex="-1">
+                    {% else %}
+                      <input type="number" min="1" max="9" class="cell-input" 
+                             data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}"
+                             aria-label="Empty cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}"
+                             placeholder="" autocomplete="off">
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% elif puzzle and puzzle|length > 0 %}
+        <!-- Fallback to puzzle if board is empty -->
+        <table class="sudoku-grid" id="player-board">
+          <tbody>
+            {% for row in puzzle %}
+              <tr class="sudoku-row">
+                {% for cell in row %}
+                  <td class="sudoku-cell" data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}">
+                    {% if cell != 0 and cell != "0" and cell %}
                       <input type="number" min="1" max="9" class="cell-input prefilled" value="{{ cell }}" disabled readonly 
                              aria-label="Prefilled cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}" 
                              tabindex="-1">
@@ -452,6 +506,9 @@
       {% else %}
         <div class="loading-board text-center py-5">
           <p class="h5">🎲 Loading puzzle...</p>
+          <p class="text-muted">Waiting for game data...</p>
+          <!-- Debug info -->
+          <small class="text-muted">Board: {{ board|length|default:"None" }} | Puzzle: {{ puzzle|length|default:"None" }}</small>
         </div>
       {% endif %}
     </div>
@@ -459,27 +516,33 @@
     <!-- Opponent's Board Preview (Read-only) -->
     <div class="board-section mt-4">
       <h6 class="text-center mb-2">Opponent's Progress</h6>
-      <table class="sudoku-grid opponent-board" id="opponent-board">
-        <tbody>
-          {% for row in board %}
-            <tr class="sudoku-row">
-              {% for cell in row %}
-                <td class="sudoku-cell">
-                  {% if cell != 0 %}
-                    <input type="number" class="cell-input prefilled opponent-cell" value="{{ cell }}" disabled readonly
-                           aria-label="Opponent prefilled cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}"
-                           tabindex="-1">
-                  {% else %}
-                    <input type="number" class="cell-input opponent-cell" disabled readonly
-                           aria-label="Opponent empty cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}"
-                           tabindex="-1">
-                  {% endif %}
-                </td>
-              {% endfor %}
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      {% if puzzle and puzzle|length > 0 %}
+        <table class="sudoku-grid opponent-board" id="opponent-board">
+          <tbody>
+            {% for row in puzzle %}
+              <tr class="sudoku-row">
+                {% for cell in row %}
+                  <td class="sudoku-cell">
+                    {% if cell != 0 and cell != "0" and cell %}
+                      <input type="number" class="cell-input prefilled opponent-cell" value="{{ cell }}" disabled readonly
+                             aria-label="Opponent prefilled cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}"
+                             tabindex="-1">
+                    {% else %}
+                      <input type="number" class="cell-input opponent-cell" disabled readonly
+                             aria-label="Opponent empty cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}"
+                             tabindex="-1">
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="opponent-loading text-center py-3">
+          <p class="text-muted">Waiting for opponent...</p>
+        </div>
+      {% endif %}
     </div>
 
     <!-- Number Pad -->
@@ -498,8 +561,25 @@
     <!-- Game Controls -->
     <div class="game-controls mt-3">
       <div class="race-controls text-center">
-        <button id="ready-btn" class="btn btn-primary" style="display: none;">I'm Ready!</button>
-        <button id="finish-btn" class="btn btn-warning" style="display: none;">Submit Solution!</button>
+        {% if game.status == 'waiting' %}
+          {% if game.player2 %}
+            <button id="ready-btn" class="btn btn-success btn-lg">I'm Ready to Race!</button>
+            <p class="mt-2 text-muted">Both players joined. Click when ready to start!</p>
+          {% else %}
+            <div class="alert alert-info">
+              <strong>Waiting for second player...</strong><br>
+              Share game code: <code>{{ game.code }}</code>
+            </div>
+          {% endif %}
+        {% elif game.status == 'ready' %}
+          <button id="ready-btn" class="btn btn-primary btn-lg">I'm Ready!</button>
+          <p class="mt-2 text-muted">Waiting for both players to be ready...</p>
+        {% elif game.status == 'racing' %}
+          <button id="finish-btn" class="btn btn-warning btn-lg">Submit Solution!</button>
+          <p class="mt-2 text-success"><strong>🏁 Race in progress!</strong></p>
+        {% else %}
+          <div class="alert alert-secondary">Game status: {{ game.status }}</div>
+        {% endif %}
       </div>
     </div>
   </div>

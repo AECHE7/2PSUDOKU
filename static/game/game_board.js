@@ -279,20 +279,19 @@ document.addEventListener('DOMContentLoaded', () => {
   // Ready UI
   const readyBtn = document.getElementById('ready-btn');
   if (readyBtn) {
-    readyBtn.style.display = 'inline-block';
     readyBtn.addEventListener('click', () => {
+      console.log('Ready button clicked');
       safeSend({ type: 'ready' });
       readyBtn.disabled = true;
       readyBtn.textContent = 'Waiting for opponent...';
+      readyBtn.classList.remove('btn-success', 'btn-primary');
+      readyBtn.classList.add('btn-secondary');
     });
   }
 
   // Finish button (kept for manual submission if needed)
   const finishBtn = document.getElementById('finish-btn');
   if (finishBtn) {
-    // Make finish button visible initially
-    finishBtn.style.display = 'inline-block';
-    
     finishBtn.addEventListener('click', () => {
       console.log('Finish button clicked');
       const isComplete = isLocalBoardComplete();
