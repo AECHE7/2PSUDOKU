@@ -19,7 +19,8 @@ from .messages import (
     ErrorMessage, NotificationMessage, PlayerConnectedMessage,
     PlayerJoinedMessage, PlayerDisconnectedMessage, PlayerLeftGameMessage,
     LeaveGameMessage, LeaveGameConfirmedMessage, PingMessage, PongMessage,
-    CountdownMessage, RaceCountdownMessage
+    CountdownMessage, RaceCountdownMessage, RaceStartedMessage,
+    GameStateMessage, PuzzleCompleteMessage
 )
 from .game_state import GameStateManager
 from .models import GameSession
@@ -202,16 +203,21 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def handle_move(self, message: MoveMessage):
         """Handle player move."""
         try:
+            # Get move data from message
+            row = message.data['row']
+            col = message.data['col']
+            value = message.data['value']
+
             # Validate move
             if not self.game_state_manager.validate_move(
-                self.user.id, message.row, message.col, message.value
+                self.user.id, row, col, value
             ):
                 await self.send_error("Invalid move")
                 return
 
             # Record move
             success = self.game_state_manager.record_move(
-                self.user.id, message.row, message.col, message.value
+                self.user.id, row, col, value
             )
             if not success:
                 await self.send_error("Failed to record move")
@@ -225,9 +231,9 @@ class GameConsumer(AsyncWebsocketConsumer):
                     'event_type': 'move_made',
                     'username': self.user.username,
                     'user_id': self.user.id,
-                    'row': message.row,
-                    'col': message.col,
-                    'value': message.value,
+                    'row': row,
+                    'col': col,
+                    'value': value,
                     'timestamp': timezone.now().isoformat(),
                 }
             )
@@ -242,7 +248,10 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def handle_complete(self, message: CompleteMessage):
         """Handle puzzle completion."""
         try:
-            success, result = self.game_state_manager.complete_puzzle(self.user.id)
+            # Get completion time from message
+            completion_time = message.data['completion_time']
+
+            success, result = await self.complete_puzzle_async(self.user.id, completion_time)
             if not success:
                 await self.send_error("Failed to complete puzzle")
                 return
@@ -264,7 +273,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({
                 'type': MessageType.PUZZLE_COMPLETE,
                 'player_id': self.user.id,
-                'completion_time': message.completion_time
+                'completion_time': completion_time
             }))
 
         except Exception as e:
@@ -399,7 +408,7 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def send_state_sync(self):
         """Send current game state to client."""
         try:
-            state_messages = self.game_state_manager.get_state_messages(self.user.id)
+            state_messages = await self.get_state_messages_async(self.user.id)
 
             for message in state_messages:
                 await self.send(text_data=json.dumps(message))
@@ -410,13 +419,11 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def check_auto_completion(self):
         """Check if player's puzzle is complete after a move."""
         try:
-            state = self.game_state_manager.get_current_state()
-            player_state = state.players.get(self.user.id)
-
-            if player_state and player_state.has_completed:
+            state = await self.check_completion_async(self.user.id)
+            if state and state.has_completed:
                 # Auto-submit completion
                 await self.handle_complete(CompleteMessage(
-                    completion_time=int(player_state.completion_time.total_seconds())
+                    completion_time=int(state.completion_time.total_seconds())
                 ))
 
         except Exception as e:
@@ -548,6 +555,142 @@ class GameConsumer(AsyncWebsocketConsumer):
         )
 
         return new_code
+
+    @database_sync_to_async
+    def complete_puzzle_async(self, player_id: int, completion_time: int):
+        """Complete puzzle in database sync context."""
+        try:
+            with transaction.atomic():
+                game = GameSession.objects.select_for_update().get(code=self.game_code)
+
+                if game.status != 'in_progress':
+                    return False, None
+
+                # Calculate completion time
+                if not game.start_time:
+                    return False, None
+
+                completion_time_delta = timezone.now() - game.start_time
+
+                # Update game result
+                from .models import GameResult
+                winner = None
+                loser = None
+
+                if game.player1 and game.player1.id == player_id:
+                    winner = game.player1
+                    loser = game.player2
+                elif game.player2 and game.player2.id == player_id:
+                    winner = game.player2
+                    loser = game.player1
+                else:
+                    return False, None
+
+                # Create result
+                result = GameResult.objects.create(
+                    game=game,
+                    winner=winner,
+                    loser=loser,
+                    winner_time=completion_time_delta,
+                    difficulty=game.difficulty,
+                    result_type='completion'
+                )
+
+                # Update game
+                game.winner = winner
+                game.status = 'finished'
+                game.end_time = timezone.now()
+                game.save()
+
+                result_data = {
+                    'winner_id': winner.id,
+                    'winner_username': winner.username,
+                    'winner_time': f"{int(completion_time_delta.total_seconds() // 60):02d}:{int(completion_time_delta.total_seconds() % 60):02d}",
+                    'loser_time': 'Did not finish',
+                }
+
+                return True, result_data
+
+        except Exception as e:
+            logger.error(f"Failed to complete puzzle: {e}")
+            return False, None
+
+    @database_sync_to_async
+    def get_state_messages_async(self, player_id: int):
+        """Get state messages in database sync context."""
+        try:
+            state = self.game_state_manager.get_current_state()
+            messages = []
+
+            # Game state message
+            player_state = state.players.get(player_id)
+            opponent_id = None
+            opponent_board = None
+
+            for pid, pstate in state.players.items():
+                if pid != player_id:
+                    opponent_id = pid
+                    opponent_board = pstate.board
+                    break
+
+            messages.append(GameStateMessage(
+                puzzle=state.puzzle,
+                board=player_state.board if player_state else state.puzzle,
+                opponent_board=opponent_board,
+                player1=state.players.get(self.game_session.player1_id).username if self.game_session.player1 else None,
+                player2=state.players.get(self.game_session.player2_id).username if self.game_session.player2 else None,
+                status=state.status.value,
+                start_time=state.start_time.isoformat() if state.start_time else None
+            ).to_dict())
+
+            # If race is in progress, send race started message
+            if state.status == GameStateManager.GameStatus.IN_PROGRESS and state.start_time:
+                messages.append(RaceStartedMessage(
+                    start_time=state.start_time.isoformat(),
+                    puzzle=state.puzzle
+                ).to_dict())
+
+            # Send puzzle complete messages for completed players
+            for pid, pstate in state.players.items():
+                if pstate.has_completed and pstate.completion_time:
+                    messages.append(PuzzleCompleteMessage(
+                        player_id=pid,
+                        completion_time=int(pstate.completion_time.total_seconds())
+                    ).to_dict())
+
+            return messages
+
+        except Exception as e:
+            logger.error(f"Error getting state messages: {e}")
+            return []
+
+    @database_sync_to_async
+    def check_completion_async(self, player_id: int):
+        """Check if player's puzzle is complete in database sync context."""
+        try:
+            state = self.game_state_manager.get_current_state()
+            player_state = state.players.get(player_id)
+
+            if player_state:
+                # Check if board is complete
+                board = player_state.board
+                if all(cell != 0 for row in board for cell in row):
+                    # Check if solution matches
+                    if self.game_state_manager.get_current_state().solution:
+                        if all(board[i][j] == self.game_state_manager.get_current_state().solution[i][j]
+                               for i in range(9) for j in range(9)):
+                            # Mark as completed if not already
+                            if not player_state.has_completed:
+                                completion_time = timezone.now() - state.start_time
+                                player_state.mark_completed(completion_time)
+                                self.game_state_manager.update_player_board(player_id, board)
+                            return player_state
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error checking completion: {e}")
+            return None
 
     @database_sync_to_async
     def mark_game_abandoned(self):
