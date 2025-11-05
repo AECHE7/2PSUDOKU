@@ -217,20 +217,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!e.target.classList.contains('cell-input')) return;
     if (e.target.disabled) return;
     
-    // Get row/col from input element or its parent cell
+    console.log('Change event triggered on cell input');
+    
+    // Get row/col from input element or its parent cell  
     let row, col;
+    
+    // First try to get from input element
     if (e.target.dataset.row !== undefined && e.target.dataset.col !== undefined) {
       row = parseInt(e.target.dataset.row);
       col = parseInt(e.target.dataset.col);
+      console.log('Got row/col from input element:', { row, col });
     } else {
+      // Fallback to parent cell
       const cell = e.target.closest('.sudoku-cell');
-      if (!cell) return;
+      if (!cell) {
+        console.error('Cannot find parent cell');
+        return;
+      }
       row = parseInt(cell.dataset.row);
       col = parseInt(cell.dataset.col);
+      console.log('Got row/col from parent cell:', { row, col });
     }
     
     const value = parseInt(e.target.value);
-    console.log(`Input change detected: Row ${row}, Col ${col}, Value ${value}`);
+    console.log(`🎯 Input change detected: Row ${row}, Col ${col}, Value ${value}`);
     
     // Check if we have valid row/col values
     if (isNaN(row) || isNaN(col)) {
@@ -306,6 +316,18 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('Auto-submitting solution...');
       autoSubmitSolution();
     }
+  });
+
+  // Also listen for 'input' events for immediate validation (as user types)
+  document.addEventListener('input', (e) => {
+    if (!e.target.classList.contains('cell-input')) return;
+    if (e.target.disabled) return;
+    
+    console.log('Input event triggered (immediate)');
+    
+    // Trigger the same validation logic as change event
+    const changeEvent = new Event('change');
+    e.target.dispatchEvent(changeEvent);
   });
 
   // Number Pad Integration
@@ -1051,30 +1073,90 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Test function for validation - can be called from browser console
   window.testValidation = function() {
-    console.log('Testing Sudoku validation...');
+    console.log('🧪 Testing Sudoku validation...');
     const playerBoard = document.getElementById('player-board');
     if (!playerBoard) {
-      console.error('Player board not found!');
+      console.error('❌ Player board not found!');
       return;
     }
     
     const cells = playerBoard.querySelectorAll('.cell-input');
-    console.log(`Found ${cells.length} cells`);
+    console.log(`✅ Found ${cells.length} cells`);
     
-    // Test case 1: Put same number in same row
-    if (cells.length >= 18) {
-      cells[0].value = '5'; // Row 0, Col 0
-      cells[1].value = '5'; // Row 0, Col 1 - should be invalid
+    // Show current board state
+    console.log('📋 Current board state:');
+    for (let i = 0; i < 81; i++) {
+      const row = Math.floor(i / 9);
+      const col = i % 9;
+      const cell = cells[i];
+      if (cell && cell.value) {
+        console.log(`Cell [${row}, ${col}]: ${cell.value}`);
+      }
+    }
+    
+    // Test case 1: Find first empty cell and test validation
+    let testCell = null;
+    let testRow = -1, testCol = -1;
+    
+    for (let i = 0; i < cells.length; i++) {
+      if (cells[i] && !cells[i].disabled && !cells[i].value) {
+        testCell = cells[i];
+        testRow = Math.floor(i / 9);
+        testCol = i % 9;
+        break;
+      }
+    }
+    
+    if (testCell) {
+      console.log(`🎯 Testing on empty cell at [${testRow}, ${testCol}]`);
       
-      // Trigger validation manually
-      const event = new Event('change');
-      cells[1].dispatchEvent(event);
+      // Try to put a number that should conflict
+      let conflictValue = '1';
+      // Check if '1' already exists in this row, column, or box
+      for (let c = 0; c < 9; c++) {
+        const rowCell = cells[testRow * 9 + c];
+        if (rowCell && rowCell.value === '1') {
+          console.log(`📍 Found existing '1' in row at col ${c} - this should trigger validation`);
+          break;
+        }
+      }
       
-      console.log('Test 1: Same number in row - Cell should be red');
-      console.log('Cell 1 classes:', cells[1].className);
+      // Set the test value and trigger validation
+      testCell.value = conflictValue;
+      const event = new Event('input');
+      testCell.dispatchEvent(event);
+      
+      console.log('🔍 Test completed - check cell styling');
+      console.log('Cell classes:', testCell.className);
+    } else {
+      console.log('⚠️ No empty cells found for testing');
     }
     
     return 'Check console and visual feedback in the game board';
+  };
+
+  // Debug function to show board state
+  window.showBoardState = function() {
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) {
+      console.error('❌ Player board not found!');
+      return;
+    }
+    
+    const cells = playerBoard.querySelectorAll('.cell-input');
+    console.log('📋 Current 9x9 Sudoku Board:');
+    
+    for (let row = 0; row < 9; row++) {
+      let rowStr = '';
+      for (let col = 0; col < 9; col++) {
+        const cell = cells[row * 9 + col];
+        const value = cell && cell.value ? cell.value : '.';
+        rowStr += value + ' ';
+        if (col === 2 || col === 5) rowStr += '| ';
+      }
+      console.log(rowStr);
+      if (row === 2 || row === 5) console.log('------+-------+------');
+    }
   };
 
   // Statistics Functions

@@ -636,6 +636,7 @@
                       <input type="number" min="1" max="9" class="cell-input prefilled" value="{{ cell }}" disabled readonly 
                              id="player-cell-{{ forloop.parentloop.counter0 }}-{{ forloop.counter0 }}"
                              name="player_cell_{{ forloop.parentloop.counter0 }}_{{ forloop.counter0 }}"
+                             data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}"
                              aria-label="Prefilled cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}" 
                              tabindex="-1">
                     {% else %}
@@ -664,6 +665,7 @@
                       <input type="number" min="1" max="9" class="cell-input prefilled" value="{{ cell }}" disabled readonly 
                              id="puzzle-cell-{{ forloop.parentloop.counter0 }}-{{ forloop.counter0 }}"
                              name="puzzle_cell_{{ forloop.parentloop.counter0 }}_{{ forloop.counter0 }}"
+                             data-row="{{ forloop.parentloop.counter0 }}" data-col="{{ forloop.counter0 }}"
                              aria-label="Prefilled cell row {{ forloop.parentloop.counter }} column {{ forloop.counter }}" 
                              tabindex="-1">
                     {% else %}
