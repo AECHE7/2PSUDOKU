@@ -989,17 +989,15 @@
       <div class="race-controls text-center">
         {% if game.status == 'waiting' %}
           {% if game.player2 %}
-            <button id="ready-btn" class="btn btn-success btn-lg">I'm Ready to Race!</button>
-            <p class="mt-2 text-muted">Both players joined. Click when ready to start!</p>
+            <div class="alert alert-success">
+              <strong>🚀 Both players joined! Race will start automatically!</strong>
+            </div>
           {% else %}
             <div class="alert alert-info">
               <strong>Waiting for second player...</strong><br>
               Share game code: <code>{{ game.code }}</code>
             </div>
           {% endif %}
-        {% elif game.status == 'ready' %}
-          <button id="ready-btn" class="btn btn-primary btn-lg">I'm Ready!</button>
-          <p class="mt-2 text-muted">Waiting for both players to be ready...</p>
         {% elif game.status == 'racing' %}
           <button id="finish-btn" class="btn btn-warning btn-lg">Submit Solution!</button>
           <p class="mt-2 text-success"><strong>🏁 Race in progress!</strong></p>

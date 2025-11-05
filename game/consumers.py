@@ -65,8 +65,7 @@ class GameConsumer(AsyncWebsocketConsumer):
 
         if message_type == 'join_game':
             await self.handle_join_game(data)
-        elif message_type == 'ready':
-            await self.handle_player_ready(data)
+        # Ready system removed - races auto-start when second player joins
         elif message_type == 'move':
             await self.handle_move(data)
         elif message_type == 'complete':
@@ -98,9 +97,22 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.add_player1(game_id, self.user.id)
             game_info = await self.get_game_player_info(game_id)
         elif not game_info['player2_id'] and game_info['player1_id'] != self.user.id:
-            # Add second player
+            # Add second player and auto-start race
             await self.add_player2(game_id, self.user.id)
             await self.start_game(game_id)
+            
+            # Auto-start the race when second player joins
+            start_iso = await self.set_start_time(game_id)
+            puzzle = await self.get_puzzle(game_id)
+            await self.channel_layer.group_send(
+                self.group_name,
+                {
+                    'type': 'race_started',
+                    'start_time': start_iso,
+                    'puzzle': puzzle,
+                }
+            )
+            
             # Refresh game info after adding player
             game_info = await self.get_game_player_info(game_id)
         elif game_info['player1_id'] == self.user.id or game_info['player2_id'] == self.user.id:

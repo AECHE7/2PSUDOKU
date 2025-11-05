@@ -28,6 +28,22 @@ document.addEventListener('DOMContentLoaded', () => {
   let puzzleBoard = [];
   let validationEnabled = true;
 
+  // Move tracking and analysis
+  let moveHistory = [];
+  let validMoves = 0;
+  let invalidMoves = 0;
+  let totalMoves = 0;
+  let gameStatistics = {
+    startTime: null,
+    endTime: null,
+    totalTime: 0,
+    moveCount: 0,
+    validMoveCount: 0,
+    invalidMoveCount: 0,
+    cellsCompleted: 0,
+    accuracyRate: 0
+  };
+
   // Helper function to safely send WebSocket messages
   let messageQueue = [];
   let isConnected = false;
@@ -138,6 +154,17 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (data.type === 'board') {
       updateBoardFromState(data.board);
     } else if (data.type === 'race_started') {
+      // Initialize game statistics
+      gameStatistics.startTime = data.start_time;
+      gameStatistics.moveCount = 0;
+      gameStatistics.validMoveCount = 0;
+      gameStatistics.invalidMoveCount = 0;
+      gameStatistics.accuracyRate = 0;
+      totalMoves = 0;
+      validMoves = 0;
+      invalidMoves = 0;
+      moveHistory = [];
+      
       // Start timers and ensure both boards have the puzzle
       const startTime = new Date(data.start_time);
       startTimers(startTime);
@@ -269,9 +296,15 @@ document.addEventListener('DOMContentLoaded', () => {
       // Validate move immediately
       const isValidMove = validateMove(row, col, value);
       
+      // Track this move for analysis
+      trackMove(row, col, value, isValidMove);
+      
       if (isValidMove) {
         console.log('✅ Valid move - adding correct class');
         e.target.classList.add('correct');
+        validMoves++;
+        gameStatistics.validMoveCount++;
+        
         setTimeout(() => {
           e.target.classList.remove('correct');
           console.log('Removed correct class');
@@ -282,6 +315,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('❌ Invalid move - adding incorrect class');
         // Show immediate feedback with shake animation
         e.target.classList.add('incorrect');
+        invalidMoves++;
+        gameStatistics.invalidMoveCount++;
         
         // Highlight conflicting cells like Sudoku.com
         highlightConflictingCells(row, col, value);
@@ -312,18 +347,15 @@ document.addEventListener('DOMContentLoaded', () => {
       // Validate entire board after move to catch any other invalid states
       setTimeout(() => {
         validateEntireBoard();
+        
+        // Check for game completion after validation
+        setTimeout(() => {
+          checkGameCompletion();
+        }, 50);
       }, 100);
       
       updateCellsFilledCount();
       highlightRelatedCells(row, col, value);
-      
-      // Always run full board validation after any move
-      setTimeout(() => {
-        if (typeof validateEntireBoard === 'function') {
-          console.log('Running full board validation after move');
-          validateEntireBoard();
-        }
-      }, 200);
       
     } else if (e.target.value === '') {
       // Clear validation states when cell is emptied
@@ -388,18 +420,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Ready UI
-  const readyBtn = document.getElementById('ready-btn');
-  if (readyBtn) {
-    readyBtn.addEventListener('click', () => {
-      console.log('Ready button clicked');
-      safeSend({ type: 'ready' });
-      readyBtn.disabled = true;
-      readyBtn.textContent = 'Waiting for opponent...';
-      readyBtn.classList.remove('btn-success', 'btn-primary');
-      readyBtn.classList.add('btn-secondary');
-    });
-  }
+  // Auto-start: Race begins automatically when second player joins
+  // No manual ready button needed - game starts when player2 connects
 
   // Finish button (kept for manual submission if needed)
   const finishBtn = document.getElementById('finish-btn');
@@ -1258,6 +1280,152 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log(`✅ Board validation complete. Found ${invalidCount} invalid entries.`);
     return invalidCount;
   };
+
+  // Move tracking and analysis functions
+  function trackMove(row, col, value, isValid) {
+    totalMoves++;
+    gameStatistics.moveCount++;
+    
+    const moveData = {
+      timestamp: new Date().toISOString(),
+      row: row,
+      col: col,
+      value: value,
+      isValid: isValid,
+      moveNumber: totalMoves
+    };
+    
+    moveHistory.push(moveData);
+    
+    // Update accuracy rate
+    gameStatistics.accuracyRate = ((gameStatistics.validMoveCount / gameStatistics.moveCount) * 100).toFixed(1);
+    
+    console.log(`📊 Move ${totalMoves}: [${row},${col}]=${value} ${isValid ? '✅' : '❌'} | Accuracy: ${gameStatistics.accuracyRate}%`);
+    
+    // Update statistics display
+    updateGameStatistics();
+  }
+
+  function updateGameStatistics() {
+    // Update cells filled count
+    const playerBoard = document.getElementById('player-board');
+    const filledCells = playerBoard.querySelectorAll('.cell-input[value]:not([value=""])').length;
+    gameStatistics.cellsCompleted = filledCells;
+    
+    // Update UI elements if they exist
+    const cellsFilledEl = document.getElementById('cells-filled');
+    if (cellsFilledEl) {
+      cellsFilledEl.textContent = `${filledCells}/81`;
+    }
+    
+    const accuracyEl = document.getElementById('accuracy-rate');
+    if (accuracyEl) {
+      accuracyEl.textContent = `${gameStatistics.accuracyRate}%`;
+    }
+    
+    console.log('📈 Game Statistics:', gameStatistics);
+  }
+
+  function getMoveAnalysis() {
+    return {
+      totalMoves: totalMoves,
+      validMoves: validMoves,
+      invalidMoves: invalidMoves,
+      accuracyRate: gameStatistics.accuracyRate,
+      moveHistory: moveHistory,
+      gameStatistics: gameStatistics
+    };
+  }
+
+  // Game completion detection function
+  function checkGameCompletion() {
+    console.log('🎯 Checking game completion...');
+    const playerBoard = document.getElementById('player-board');
+    if (!playerBoard) {
+      console.error('❌ Player board not found!');
+      return false;
+    }
+    
+    const cells = playerBoard.querySelectorAll('.cell-input');
+    let filledCells = 0;
+    let validCells = 0;
+    
+    cells.forEach(cell => {
+      const value = parseInt(cell.value);
+      if (value >= 1 && value <= 9) {
+        filledCells++;
+        
+        // Get row and col from cell attributes
+        const row = parseInt(cell.getAttribute('data-rowindex'));
+        const col = parseInt(cell.getAttribute('data-colindex'));
+        
+        // Check if this move is valid
+        if (validateMove(row, col, value)) {
+          validCells++;
+        }
+      }
+    });
+    
+    console.log(`📊 Completion check: ${filledCells}/81 filled, ${validCells}/81 valid`);
+    
+    // Game is complete if all 81 cells are filled with valid values
+    if (filledCells === 81 && validCells === 81) {
+      console.log('🎉 Game completed successfully!');
+      handleGameCompletion();
+      return true;
+    }
+    
+    return false;
+  }
+
+  // Handle successful game completion
+  function handleGameCompletion() {
+    console.log('🏆 Player completed the puzzle!');
+    
+    // Record completion time
+    gameStatistics.endTime = new Date().toISOString();
+    gameStatistics.totalTime = startTime ? new Date() - startTime : 0;
+    
+    // Stop the timer
+    stopElapsedTimer();
+    
+    // Get final move analysis
+    const finalAnalysis = getMoveAnalysis();
+    
+    // Send completion notification to server with statistics
+    safeSend({
+      type: 'puzzle_complete',
+      completion_time: gameStatistics.endTime,
+      game_statistics: gameStatistics,
+      move_analysis: finalAnalysis
+    });
+    
+    // Update UI to show completion
+    const gameStatus = document.getElementById('game-status');
+    if (gameStatus) {
+      gameStatus.innerHTML = '🏆 Puzzle Complete!';
+      gameStatus.classList.add('text-success');
+    }
+    
+    // Show completion message with statistics
+    const completionTime = gameStatistics.totalTime ? Math.floor(gameStatistics.totalTime / 1000) : 0;
+    const minutes = Math.floor(completionTime / 60);
+    const seconds = completionTime % 60;
+    
+    addMessage(`🎉 Congratulations! You completed the puzzle in ${minutes}:${seconds.toString().padStart(2, '0')} with ${gameStatistics.accuracyRate}% accuracy!`, 'success');
+    
+    // Log final statistics
+    console.log('📊 Final Game Statistics:', finalAnalysis);
+    
+    // Add visual celebration effect
+    const playerBoard = document.getElementById('player-board');
+    if (playerBoard) {
+      playerBoard.classList.add('puzzle-complete');
+      setTimeout(() => {
+        playerBoard.classList.remove('puzzle-complete');
+      }, 3000);
+    }
+  }
 
   // Auto-validate board when page loads
   document.addEventListener('DOMContentLoaded', function() {
