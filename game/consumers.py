@@ -259,6 +259,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             'winner_id': event.get('winner_id'),
             'winner_username': event.get('winner_username'),
             'winner_time': event.get('winner_time'),
+            'loser_time': event.get('loser_time', 'Did not finish'),
         })
     
     async def player_disconnected(self, event):
@@ -358,6 +359,7 @@ class GameConsumer(AsyncWebsocketConsumer):
                 'winner_id': result['winner_id'],
                 'winner_username': result['winner_username'],
                 'winner_time': result['winner_time'],
+                'loser_time': result.get('loser_time', 'Did not finish'),
             }
         )
 
@@ -548,14 +550,17 @@ class GameConsumer(AsyncWebsocketConsumer):
         else:
             loser = game.player1
 
-        # compute times
+        # Compute winner time
         if game.start_time:
             winner_time = timezone.now() - game.start_time
+            winner_time_str = f"{int(winner_time.total_seconds() // 60):02d}:{int(winner_time.total_seconds() % 60):02d}"
         else:
             winner_time = None
+            winner_time_str = "00:00"
 
-        # Try to estimate loser time from their board completeness; if not complete, leave blank
+        # Check if loser completed (for future implementation)
         loser_time = None
+        loser_time_str = "Did not finish"
 
         # Persist GameResult
         result = GameResult.objects.create(
@@ -570,10 +575,12 @@ class GameConsumer(AsyncWebsocketConsumer):
         game.status = 'finished'
         game.end_time = timezone.now()
         game.save()
+        
         return {
             'winner_id': winner.id,
             'winner_username': winner.username,
-            'winner_time': str(winner_time),
+            'winner_time': winner_time_str,
+            'loser_time': loser_time_str,
         }
 
     @database_sync_to_async

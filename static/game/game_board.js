@@ -550,41 +550,59 @@ document.addEventListener('DOMContentLoaded', () => {
   let raceStartTime = null;
 
   function startTimers(startTime) {
-    console.log('⏰ startTimers called with:', startTime);
+    Logger.info(`Starting timers from: ${startTime}`);
     raceStartTime = startTime;
     
-    if (timerInterval) {
-      console.log('⏰ Clearing existing timer interval');
-      clearInterval(timerInterval);
-    }
-    
-    // Wait for DOM to be ready
-    setTimeout(() => {
-      console.log('⏰ Setting up new timer interval');
+    // Function to check and start timer
+    const initTimer = () => {
+      const timer1 = document.getElementById('player1-timer');
+      const timer2 = document.getElementById('player2-timer');
+      
+      if (!timer1 || !timer2) {
+        Logger.warn('Timer elements not found yet, retrying...');
+        return false;
+      }
+      
+      Logger.info('Timer elements found, starting interval');
+      
+      // Clear any existing interval
+      if (timerInterval) {
+        clearInterval(timerInterval);
+      }
+      
       timerInterval = setInterval(() => {
         const now = new Date();
         const elapsed = Math.max(0, Math.floor((now - raceStartTime) / 1000));
         const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
         const ss = String(elapsed % 60).padStart(2, '0');
         
-        const timer1 = document.getElementById('player1-timer');
-        const timer2 = document.getElementById('player2-timer');
-        
-        if (timer1) {
-          timer1.textContent = `${mm}:${ss}`;
-        } else {
-          console.error('❌ player1-timer element not found!');
-        }
-        
-        if (timer2) {
-          timer2.textContent = `${mm}:${ss}`;
-        } else {
-          console.error('❌ player2-timer element not found!');
-        }
+        timer1.textContent = `${mm}:${ss}`;
+        timer2.textContent = `${mm}:${ss}`;
       }, 500);
       
-      console.log('✅ Timer interval set up successfully');
-    }, 100); // Small delay to ensure DOM is ready
+      Logger.info('Timer interval started successfully');
+      return true;
+    };
+    
+    // Try immediately first
+    if (initTimer()) {
+      return;
+    }
+    
+    // If not ready, retry with increasing delays
+    const retryDelays = [100, 250, 500, 1000];
+    let retryIndex = 0;
+    
+    const retryTimer = setInterval(() => {
+      if (initTimer() || retryIndex >= retryDelays.length) {
+        clearInterval(retryTimer);
+        if (retryIndex >= retryDelays.length) {
+          Logger.error('Failed to start timer after all retries');
+        }
+      } else {
+        retryIndex++;
+      }
+    }, retryDelays[retryIndex] || 1000);
   }
 
   function stopTimers() {
@@ -714,8 +732,14 @@ document.addEventListener('DOMContentLoaded', () => {
     disableAllInputs();
     clearHighlights();
     
+    // Hide submit button
+    hideSubmitButton();
+    
     // Update game status
-    document.getElementById('game-status').innerHTML = '🏆 Finished';
+    const gameStatusEl = document.getElementById('game-status');
+    if (gameStatusEl) {
+      gameStatusEl.innerHTML = '🏆 Finished';
+    }
     
     // Hide race controls
     const raceControls = document.querySelector('.race-controls');
@@ -723,11 +747,16 @@ document.addEventListener('DOMContentLoaded', () => {
       raceControls.style.display = 'none';
     }
     
-    // Show winner message in chat
+    // Determine winner and show results
     const isWinner = data.winner_id == playerId;
-    const winnerMessage = isWinner ? 
-      `🏆 Congratulations! You won in ${data.winner_time}!` :
-      `${data.winner_username} won in ${data.winner_time}. Better luck next time!`;
+    const loserTime = data.loser_time || 'Did not finish';
+    
+    let winnerMessage;
+    if (isWinner) {
+      winnerMessage = `🏆 YOU WON! Completed in ${data.winner_time}. Opponent: ${loserTime}`;
+    } else {
+      winnerMessage = `${data.winner_username} won in ${data.winner_time}. You: ${loserTime}`;
+    }
     
     addMessage(winnerMessage, isWinner ? 'success' : 'info');
     
@@ -1062,55 +1091,64 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function validateMove(row, col, value) {
-    // Basic client-side validation on player's board only
+    // Get all cells from player's board
     const playerBoard = document.getElementById('player-board');
     if (!playerBoard) {
-      console.log('No player board found for validation');
-      return true; // if no player board in DOM, skip strict checks
-    }
-    const cells = playerBoard.querySelectorAll('.cell-input');
-    
-    console.log(`Validating move: Row ${row}, Col ${col}, Value ${value}`);
-    
-    // Check row
-    for (let c = 0; c < 9; c++) {
-      if (c !== col) {
-        const cell = cells[row * 9 + c];
-        if (cell && cell.value == value) {
-          console.log(`Row conflict found at col ${c} with value ${cell.value}`);
-          return false;
-        }
-      }
+      Logger.warn('No player board found for validation');
+      return true;
     }
     
-    // Check column
+    // Build a 9x9 array of current values
+    const board = [];
     for (let r = 0; r < 9; r++) {
-      if (r !== row) {
-        const cell = cells[r * 9 + col];
-        if (cell && cell.value == value) {
-          console.log(`Column conflict found at row ${r} with value ${cell.value}`);
-          return false;
+      board[r] = [];
+      for (let c = 0; c < 9; c++) {
+        const cellElement = playerBoard.querySelector(`.sudoku-cell[data-row="${r}"][data-col="${c}"] .cell-input`);
+        if (cellElement) {
+          // For the current cell being validated, use the new value
+          if (r === row && c === col) {
+            board[r][c] = value;
+          } else {
+            board[r][c] = parseInt(cellElement.value) || 0;
+          }
+        } else {
+          board[r][c] = 0;
         }
       }
     }
     
-    // Check 3x3 box
+    Logger.debug(`Validating: Row ${row}, Col ${col}, Value ${value}`);
+    
+    // Check row for conflicts
+    for (let c = 0; c < 9; c++) {
+      if (c !== col && board[row][c] === value) {
+        Logger.debug(`❌ Row conflict at col ${c}`);
+        return false;
+      }
+    }
+    
+    // Check column for conflicts
+    for (let r = 0; r < 9; r++) {
+      if (r !== row && board[r][col] === value) {
+        Logger.debug(`❌ Column conflict at row ${r}`);
+        return false;
+      }
+    }
+    
+    // Check 3x3 box for conflicts
     const boxRow = Math.floor(row / 3) * 3;
     const boxCol = Math.floor(col / 3) * 3;
     
     for (let r = boxRow; r < boxRow + 3; r++) {
       for (let c = boxCol; c < boxCol + 3; c++) {
-        if (r !== row || c !== col) {
-          const cell = cells[r * 9 + c];
-          if (cell && cell.value == value) {
-            console.log(`Box conflict found at row ${r}, col ${c} with value ${cell.value}`);
-            return false;
-          }
+        if ((r !== row || c !== col) && board[r][c] === value) {
+          Logger.debug(`❌ Box conflict at (${r}, ${c})`);
+          return false;
         }
       }
     }
     
-    console.log('Move is valid');
+    Logger.debug('✅ Move is valid');
     return true;
   }
 
@@ -1349,43 +1387,135 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Game completion detection function
   function checkGameCompletion() {
-    console.log('🎯 Checking game completion...');
+    Logger.debug('Checking game completion...');
     const playerBoard = document.getElementById('player-board');
     if (!playerBoard) {
-      console.error('❌ Player board not found!');
+      Logger.error('Player board not found!');
       return false;
     }
     
-    const cells = playerBoard.querySelectorAll('.cell-input');
+    // Build complete board state
     let filledCells = 0;
-    let validCells = 0;
+    let allValid = true;
     
-    cells.forEach((cell, index) => {
-      const value = parseInt(cell.value);
-      if (value >= 1 && value <= 9) {
-        filledCells++;
-        
-        // Get row and col using index calculation (consistent with validateEntireBoard)
-        const row = Math.floor(index / 9);
-        const col = index % 9;
-        
-        // Check if this move is valid
-        if (validateMove(row, col, value)) {
-          validCells++;
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        const cellElement = playerBoard.querySelector(`.sudoku-cell[data-row="${r}"][data-col="${c}"] .cell-input`);
+        if (cellElement) {
+          const value = parseInt(cellElement.value);
+          if (value >= 1 && value <= 9) {
+            filledCells++;
+            // Validate this cell
+            if (!validateMove(r, c, value)) {
+              allValid = false;
+            }
+          } else {
+            allValid = false;
+          }
+        } else {
+          allValid = false;
         }
       }
-    });
+    }
     
-    console.log(`📊 Completion check: ${filledCells}/81 filled, ${validCells}/81 valid`);
+    Logger.debug(`Completion check: ${filledCells}/81 filled, valid=${allValid}`);
     
-    // Game is complete if all 81 cells are filled with valid values
-    if (filledCells === 81 && validCells === 81) {
-      console.log('🎉 Game completed successfully!');
-      handleGameCompletion();
-      return true;
+    // Show submit button if all cells filled
+    if (filledCells === 81) {
+      showSubmitButton(allValid);
+      return allValid;
+    } else {
+      hideSubmitButton();
     }
     
     return false;
+  }
+
+  // Show submit button
+  function showSubmitButton(isValid) {
+    let submitBtn = document.getElementById('submit-puzzle-btn');
+    
+    if (!submitBtn) {
+      // Create submit button if it doesn't exist
+      const playerBoard = document.getElementById('player-board');
+      if (!playerBoard) return;
+      
+      submitBtn = document.createElement('button');
+      submitBtn.id = 'submit-puzzle-btn';
+      submitBtn.className = 'btn btn-lg mt-3 w-100';
+      submitBtn.style.fontSize = '1.2rem';
+      submitBtn.style.fontWeight = 'bold';
+      
+      submitBtn.addEventListener('click', () => {
+        handleManualSubmit();
+      });
+      
+      playerBoard.parentElement.appendChild(submitBtn);
+    }
+    
+    if (isValid) {
+      submitBtn.className = 'btn btn-success btn-lg mt-3 w-100';
+      submitBtn.innerHTML = '✓ Submit Puzzle';
+      submitBtn.disabled = false;
+    } else {
+      submitBtn.className = 'btn btn-warning btn-lg mt-3 w-100';
+      submitBtn.innerHTML = '⚠ Puzzle has errors (click to submit anyway)';
+      submitBtn.disabled = false;
+    }
+    
+    submitBtn.style.display = 'block';
+  }
+
+  // Hide submit button
+  function hideSubmitButton() {
+    const submitBtn = document.getElementById('submit-puzzle-btn');
+    if (submitBtn) {
+      submitBtn.style.display = 'none';
+    }
+  }
+
+  // Handle manual submit
+  function handleManualSubmit() {
+    if (gameFinished) {
+      Logger.warn('Game already submitted');
+      return;
+    }
+    
+    Logger.info('Manual puzzle submission');
+    gameFinished = true;
+    
+    // Disable submit button
+    const submitBtn = document.getElementById('submit-puzzle-btn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '⏳ Submitting...';
+    }
+    
+    // Disable all inputs
+    disableAllInputs();
+    
+    // Stop timer
+    stopTimers();
+    
+    // Calculate completion time
+    const completionTime = raceStartTime ? new Date() - raceStartTime : 0;
+    
+    // Send completion to server
+    const success = safeSend({ 
+      type: 'complete',
+      completion_time: completionTime
+    });
+    
+    if (success) {
+      addMessage('🎉 Puzzle submitted! Waiting for results...', 'success');
+    } else {
+      addMessage('❌ Failed to submit solution. Check connection.', 'error');
+      gameFinished = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '✓ Submit Puzzle';
+      }
+    }
   }
 
   // Handle successful game completion
