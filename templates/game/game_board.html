@@ -865,7 +865,7 @@
         </h5>
         <div class="player-timer h6" id="player1-timer">00:00</div>
         <small class="player-status text-muted" id="player1-status">
-          {% if game.status == 'racing' %}Racing{% else %}Ready{% endif %}
+          {% if game.status == 'in_progress' %}Racing{% else %}Ready{% endif %}
         </small>
       </div>
       
@@ -881,7 +881,7 @@
           </h5>
           <div class="player-timer h6" id="player2-timer">00:00</div>
           <small class="player-status text-muted" id="player2-status">
-            {% if game.status == 'racing' %}Racing{% else %}Ready{% endif %}
+            {% if game.status == 'in_progress' %}Racing{% else %}Ready{% endif %}
           </small>
         {% else %}
           <h5 class="mb-1 text-muted">Waiting...</h5>
@@ -998,7 +998,7 @@
               Share game code: <code>{{ game.code }}</code>
             </div>
           {% endif %}
-        {% elif game.status == 'racing' %}
+        {% elif game.status == 'in_progress' %}
           <button id="finish-btn" class="btn btn-warning btn-lg">Submit Solution!</button>
           <p class="mt-2 text-success"><strong>🏁 Race in progress!</strong></p>
         {% else %}

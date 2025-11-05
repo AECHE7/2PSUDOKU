@@ -443,7 +443,16 @@ class GameConsumer(AsyncWebsocketConsumer):
             print(f"   Loser Time: {result.get('loser_time', 'Did not finish')}")
             print(f"   Group Name: {self.group_name}")
             
-            # Broadcast finish immediately
+            # Send finish directly to the requester to avoid relying solely on cross-process delivery
+            await self.safe_send({
+                'type': 'race_finished',
+                'winner_id': result['winner_id'],
+                'winner_username': result['winner_username'],
+                'winner_time': result['winner_time'],
+                'loser_time': result.get('loser_time', 'Did not finish'),
+            })
+
+            # Broadcast finish immediately to the whole group
             await self.channel_layer.group_send(
                 self.group_name,
                 {
