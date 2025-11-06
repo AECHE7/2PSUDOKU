@@ -19,7 +19,7 @@ def create_game_result_safely(game, winner, loser, winner_time, difficulty, resu
     Note: This fallback can be removed once migration 0005_ensure_result_type
     has been applied to all environments (especially production)."""
     from django.db import transaction, IntegrityError
-    from .models import GameResult
+    from ..models import GameResult  # Fix: import from parent game module
     
     try:
         with transaction.atomic():

@@ -946,8 +946,8 @@ class GameConsumer(AsyncWebsocketConsumer):
                         winner = game.player1
                         loser = game.player2
 
-                    # Create result using our safe creation method
-                    from .utils.migration_helpers import create_game_result_safely
+                    # Import locally to avoid circular imports
+                    from game.utils.migration_helpers import create_game_result_safely
                     result = create_game_result_safely(
                         game=game,
                         winner=winner,
