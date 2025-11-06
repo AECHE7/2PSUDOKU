@@ -143,12 +143,20 @@ class GameConsumer(AsyncWebsocketConsumer):
                     except Exception as e:
                         logger.error(f"Error sending disconnect notification: {e}")
 
-                # Update game state if needed
+                # Only handle disconnect for games in progress and only if it's a deliberate disconnect
+                # Don't abandon game on normal disconnects (page refresh, network issues, etc.)
+                # Code 1001 = going away (normal), 1006 = abnormal close
+                # Only abandon if it's a deliberate close (1000) or timeout
                 if self.game_session and self.game_session.status == GameStatus.IN_PROGRESS.value:
-                    try:
-                        await self.handle_player_disconnect()
-                    except Exception as e:
-                        logger.error(f"Error handling player disconnect state: {e}")
+                    if close_code in [1000]:  # Only for deliberate normal closure
+                        try:
+                            logger.info(f"Player {self.user.username} deliberately left game {self.game_code}")
+                            await self.handle_player_disconnect()
+                        except Exception as e:
+                            logger.error(f"Error handling deliberate disconnect: {e}")
+                    else:
+                        # For other codes (1001=going away, 1006=abnormal), just log but don't abandon
+                        logger.info(f"Player {self.user.username} temporarily disconnected (code {close_code}) - game continues")
 
                 logger.info(f"Player {self.user.username if self.user else 'Unknown'} disconnected from game {self.game_code} with code {close_code}")
 
@@ -168,25 +176,25 @@ class GameConsumer(AsyncWebsocketConsumer):
             msg_type = raw_message.get('type')
             if not msg_type:
                 await self.send_error("Message must have a 'type' field")
-                return
+                return  # Don't disconnect, just reject the message
 
             # Validate message based on type
             if msg_type == MessageType.MOVE:
                 if not MessageValidator.validate_move_message(raw_message):
-                    await self.send_error("Invalid move message")
-                    return
+                    await self.send_error("Invalid move message format")
+                    return  # Don't disconnect
             elif msg_type == MessageType.JOIN_GAME:
                 if not MessageValidator.validate_join_game_message(raw_message):
-                    await self.send_error("Invalid join game message")
-                    return
+                    await self.send_error("Invalid join game message format")
+                    return  # Don't disconnect
             elif msg_type == MessageType.COMPLETE:
                 if not MessageValidator.validate_complete_message(raw_message):
-                    await self.send_error("Invalid complete message")
-                    return
+                    await self.send_error("Invalid complete message format")
+                    return  # Don't disconnect
             elif msg_type == MessageType.PLAY_AGAIN:
                 if not MessageValidator.validate_play_again_message(raw_message):
-                    await self.send_error("Invalid play again message")
-                    return
+                    await self.send_error("Invalid play again message format")
+                    return  # Don't disconnect
 
             message = MessageFactory.create_message(msg_type, raw_message)
 
@@ -195,9 +203,11 @@ class GameConsumer(AsyncWebsocketConsumer):
 
         except json.JSONDecodeError:
             await self.send_error("Invalid JSON format")
+            # Don't disconnect - just reject the message
         except Exception as e:
-            logger.error(f"Error processing message: {e}")
-            await self.send_error("Internal server error")
+            logger.error(f"Error processing message: {e}", exc_info=True)
+            await self.send_error("Internal server error - please try again")
+            # Don't disconnect - let client retry
 
     async def route_message(self, message):
         """Route message to appropriate handler based on type."""
@@ -311,8 +321,9 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.check_auto_completion()
 
         except Exception as e:
-            logger.error(f"Error in handle_move: {e}")
-            await self.send_error("Failed to process move")
+            logger.error(f"Error in handle_move: {e}", exc_info=True)
+            await self.send_error("Failed to process move - please try again")
+            # Don't disconnect - just reject this move
 
     async def handle_complete(self, message: CompleteMessage):
         """Handle puzzle completion."""
@@ -346,8 +357,9 @@ class GameConsumer(AsyncWebsocketConsumer):
             }))
 
         except Exception as e:
-            logger.error(f"Error in handle_complete: {e}")
-            await self.send_error("Failed to complete puzzle")
+            logger.error(f"Error in handle_complete: {e}", exc_info=True)
+            await self.send_error("Failed to complete puzzle - please try again")
+            # Don't disconnect - game can continue
 
     async def handle_play_again(self, message):
         """Handle play again request."""
@@ -367,13 +379,14 @@ class GameConsumer(AsyncWebsocketConsumer):
             )
 
         except Exception as e:
-            logger.error(f"Error in handle_play_again: {e}")
-            await self.send_error("Failed to create new game")
+            logger.error(f"Error in handle_play_again: {e}", exc_info=True)
+            await self.send_error("Failed to create new game - please try again")
+            # Don't disconnect
 
     async def handle_leave_game(self, message: LeaveGameMessage):
-        """Handle player leaving game."""
+        """Handle player leaving game - only called when explicitly requested."""
         try:
-            # Mark game as abandoned
+            # Mark game as abandoned (player explicitly wants to leave)
             await self.mark_game_abandoned()
 
             # Notify group
@@ -391,12 +404,13 @@ class GameConsumer(AsyncWebsocketConsumer):
             leave_confirmed = LeaveGameConfirmedMessage()
             await self.send(text_data=json.dumps(leave_confirmed.to_dict()))
 
-            # Close connection
+            # Close connection (this is intentional)
             await self.close()
 
         except Exception as e:
-            logger.error(f"Error in handle_leave_game: {e}")
+            logger.error(f"Error in handle_leave_game: {e}", exc_info=True)
             await self.send_error("Failed to leave game")
+            # Don't forcefully disconnect on error
 
     async def handle_ping(self, message: PingMessage):
         """Handle ping message."""
