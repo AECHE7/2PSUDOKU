@@ -189,11 +189,14 @@ class RaceFinishedMessage(WebSocketMessage):
 @dataclass
 class PlayAgainMessage(WebSocketMessage):
     """Request to play again."""
-    def __init__(self, difficulty: str):
+    difficulty: str = 'medium'  # Default difficulty
+    
+    def __init__(self, difficulty: str = 'medium'):
         super().__init__(
             type=MessageType.PLAY_AGAIN,
             data={'difficulty': difficulty}
         )
+        self.difficulty = difficulty  # Store as attribute for easy access
 
 
 @dataclass
@@ -406,7 +409,7 @@ class MessageFactory:
                 data.get('winner_time'), data.get('loser_time')
             )
         elif msg_type == MessageType.PLAY_AGAIN:
-            return message_classes[msg_type](data.get('difficulty'))
+            return message_classes[msg_type](data.get('difficulty', 'medium'))  # Default to medium
         elif msg_type == MessageType.PLAYER_CONNECTED:
             return message_classes[msg_type](
                 data.get('player_id'), data.get('username')
@@ -519,9 +522,8 @@ class MessageValidator:
     @staticmethod
     def validate_play_again_message(data: Dict[str, Any]) -> bool:
         """Validate play again message data."""
-        required_fields = ['difficulty']
-        if not all(field in data for field in required_fields):
-            return False
-
-        difficulty = data['difficulty']
-        return difficulty in ['easy', 'medium', 'hard']
+        # Difficulty is optional - defaults to 'medium' if not provided
+        if 'difficulty' in data:
+            difficulty = data['difficulty']
+            return difficulty in ['easy', 'medium', 'hard']
+        return True  # Valid even without difficulty (will use default)
