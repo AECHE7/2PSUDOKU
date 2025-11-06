@@ -32,6 +32,14 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Emergency schema fix - ensure critical columns exist
+echo "🔧 Running emergency schema fixer..."
+python ensure_db_schema.py
+
+if [ $? -ne 0 ]; then
+    echo "⚠️ Schema fixer had issues, but continuing..."
+fi
+
 # Collect static files
 echo "📦 Collecting static files..."
 python manage.py collectstatic --noinput --clear

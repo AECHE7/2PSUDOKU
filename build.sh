@@ -39,4 +39,8 @@ python manage.py migrate game --noinput
 echo "🔍 Verifying migrations status:"
 python manage.py showmigrations game
 
+# Emergency schema fix - ensure critical columns exist
+echo "🔧 Running emergency schema fixer..."
+python ensure_db_schema.py
+
 echo "✅ Build complete!"
