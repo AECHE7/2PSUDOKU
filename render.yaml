@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: 2psudoku
+    env: python
+    buildCommand: ./build.sh
+    startCommand: ./start_server.sh
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.0
+    release:
+      command: |
+        python manage.py migrate --noinput
+        python manage.py validate_migrations

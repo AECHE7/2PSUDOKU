@@ -14,13 +14,20 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Run comprehensive race-mode migrations first
-echo "🗃️ Running comprehensive race-mode migrations..."
-python migrate_race_mode.py
+# Validate required migrations
+echo "� Validating required migrations..."
+python manage.py validate_migrations
 
-if [ $? -eq 0 ]; then
-    echo "✅ Migrations completed successfully!"
-else
+if [ $? -ne 0 ]; then
+    echo "❌ Migration validation failed!"
+    exit 1
+fi
+
+# Run comprehensive migrations
+echo "🗃️ Running migrations..."
+python manage.py migrate --noinput
+
+if [ $? -ne 0 ]; then
     echo "❌ Migrations failed!"
     exit 1
 fi

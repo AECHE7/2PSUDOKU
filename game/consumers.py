@@ -723,6 +723,39 @@ class GameConsumer(AsyncWebsocketConsumer):
 
         return new_code
 
+    def _create_game_result_sync(self, game, winner, loser, winner_time, difficulty, result_type='completion'):
+        """Synchronous helper to create a GameResult record.
+
+        Use this from sync contexts (including functions decorated with
+        `@database_sync_to_async`). If you need to call this from an async
+        context, use `create_game_result_async` which is the async wrapper.
+        
+        Uses get_or_create to handle concurrent game completion attempts safely.
+        """
+        from .models import GameResult
+        from django.db import IntegrityError, transaction
+
+        try:
+            with transaction.atomic():
+                obj, created = GameResult.objects.get_or_create(
+                    game=game,
+                    defaults={
+                        'winner': winner,
+                        'loser': loser,
+                        'winner_time': winner_time,
+                        'difficulty': difficulty,
+                        'result_type': result_type
+                    }
+                )
+                return obj
+        except IntegrityError:
+            # Another player/process may have created the result first
+            # Get the existing record
+            return GameResult.objects.get(game=game)
+
+    # Async wrapper for use from async contexts
+    create_game_result_async = database_sync_to_async(_create_game_result_sync)
+
     @database_sync_to_async
     def complete_puzzle_async(self, player_id: int, completion_time: int):
         """Complete puzzle in database sync context."""
@@ -740,7 +773,6 @@ class GameConsumer(AsyncWebsocketConsumer):
                 completion_time_delta = timezone.now() - game.start_time
 
                 # Update game result
-                from .models import GameResult
                 winner = None
                 loser = None
 
@@ -753,15 +785,23 @@ class GameConsumer(AsyncWebsocketConsumer):
                 else:
                     return False, None
 
-                # Create result
-                result = GameResult.objects.create(
-                    game=game,
-                    winner=winner,
-                    loser=loser,
-                    winner_time=completion_time_delta,
-                    difficulty=game.difficulty,
-                    result_type='completion'
-                )
+                try:
+                    # Create result using the synchronous helper (we are already
+                    # in a sync context because this function is wrapped by
+                    # `database_sync_to_async`). Calling the async wrapper here
+                    # would return a coroutine object instead of performing the
+                    # DB action immediately.
+                    result = self._create_game_result_sync(
+                        game=game,
+                        winner=winner,
+                        loser=loser,
+                        winner_time=completion_time_delta,
+                        difficulty=game.difficulty,
+                        result_type='completion'
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create game result: {e}")
+                    return False, None
 
                 # Update game
                 game.winner = winner
@@ -886,51 +926,56 @@ class GameConsumer(AsyncWebsocketConsumer):
             return None
 
     @database_sync_to_async
-    def handle_player_disconnect(self):
-        """Handle player disconnection and update game state."""
+    def _update_game_on_disconnect(self):
+        """Update game state in sync context."""
+        with transaction.atomic():
+            # Reload game session to get latest state
+            game = GameSession.objects.select_for_update().get(code=self.game_code)
+
+            # Different handling based on game status
+            if game.status == 'in_progress':
+                if game.player1 and game.player2:
+                    # Mark game as abandoned
+                    game.status = 'abandoned'
+                    game.end_time = timezone.now()
+
+                    if game.player1.id == self.user.id:
+                        winner = game.player2
+                        loser = game.player1
+                    else:
+                        winner = game.player1
+                        loser = game.player2
+
+                    # Create result
+                    from .models import GameResult
+                    GameResult.objects.create(
+                        game=game,
+                        winner=winner,
+                        loser=loser,
+                        winner_time=timezone.now() - (game.start_time or timezone.now()),
+                        difficulty=game.difficulty,
+                        result_type='forfeit'
+                    )
+                    game.winner = winner
+
+            elif game.status == 'waiting':
+                # Remove disconnected player if they were the only one
+                if game.player1 and game.player1.id == self.user.id:
+                    game.player1 = None
+                elif game.player2 and game.player2.id == self.user.id:
+                    game.player2 = None
+                
+                if not game.player1 and not game.player2:
+                    game.status = 'abandoned'
+
+            game.save()
+            self.game_session = game
+            return game
+
+    async def handle_player_disconnect(self):
+        """Handle player disconnection asynchronously."""
         try:
-            with transaction.atomic():
-                # Reload game session to get latest state
-                game = GameSession.objects.select_for_update().get(code=self.game_code)
-
-                # Different handling based on game status
-                if game.status == 'in_progress':
-                    if game.player1 and game.player2:
-                        # Mark game as abandoned and create forfeit result
-                        game.status = 'abandoned'
-                        game.end_time = timezone.now()
-
-                        from .models import GameResult
-                        if game.player1.id == self.user.id:
-                            winner = game.player2
-                            loser = game.player1
-                        else:
-                            winner = game.player1
-                            loser = game.player2
-
-                        GameResult.objects.create(
-                            game=game,
-                            winner=winner,
-                            loser=loser,
-                            winner_time=timezone.now() - (game.start_time or timezone.now()),
-                            difficulty=game.difficulty,
-                            result_type='forfeit'
-                        )
-                        game.winner = winner
-
-                elif game.status == 'waiting':
-                    # Remove disconnected player if they were the only one
-                    if game.player1 and game.player1.id == self.user.id:
-                        game.player1 = None
-                    elif game.player2 and game.player2.id == self.user.id:
-                        game.player2 = None
-                    
-                    if not game.player1 and not game.player2:
-                        game.status = 'abandoned'
-
-                game.save()
-                self.game_session = game
-
+            await self._update_game_on_disconnect()
         except Exception as e:
             logger.error(f"Error handling player disconnect: {e}", exc_info=True)
             raise

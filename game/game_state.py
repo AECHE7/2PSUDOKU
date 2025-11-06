@@ -383,6 +383,7 @@ class GameStateManager:
                 logger.error(f"Move validation failed: game status is {state.status}")
                 return False
 
+
             # Check if player is in game
             if player_id not in state.players:
                 logger.error(f"Move validation failed: player {player_id} not in game")
