@@ -731,6 +731,19 @@ document.addEventListener('DOMContentLoaded', () => {
         gameState.selectedCell.dispatchEvent(new Event('change'));
       }
     }
+    
+    // Submit solution button
+    if (e.target.id === 'finish-btn') {
+      if (isBoardComplete()) {
+        if (isBoardValid()) {
+          autoSubmitSolution();
+        } else {
+          addMessage('❌ Solution is invalid. Please check your answers.', 'error');
+        }
+      } else {
+        addMessage('❌ Please fill in all cells before submitting.', 'error');
+      }
+    }
 
     // Play again button
     if (e.target.id === 'play-again-btn') {
