@@ -276,7 +276,12 @@ class GameConsumer(AsyncWebsocketConsumer):
             if not await self.game_state_manager.validate_move_async(
                 self.user.id, row, col, value
             ):
-                await self.send_error("Invalid move")
+                # Send more specific error message
+                game_state = await self.game_state_manager.get_current_state_async()
+                if game_state.status != GameStatus.IN_PROGRESS:
+                    await self.send_error(f"Cannot move: Game is {game_state.status.value}")
+                else:
+                    await self.send_error("Invalid move - check Sudoku rules")
                 return
 
             # Record move
@@ -722,6 +727,30 @@ class GameConsumer(AsyncWebsocketConsumer):
         )
 
         return new_code
+
+    @database_sync_to_async
+    def mark_game_abandoned(self):
+        """Mark the current game as abandoned."""
+        try:
+            with transaction.atomic():
+                game = GameSession.objects.select_for_update().get(code=self.game_code)
+                
+                # Only mark as abandoned if not already finished
+                if game.status not in ['finished', 'abandoned']:
+                    game.status = 'abandoned'
+                    game.end_time = timezone.now()
+                    game.save()
+                    logger.info(f"Game {self.game_code} marked as abandoned by {self.user.username}")
+                    return True
+                
+                return False
+                
+        except GameSession.DoesNotExist:
+            logger.error(f"Game {self.game_code} not found when trying to mark abandoned")
+            return False
+        except Exception as e:
+            logger.error(f"Error marking game {self.game_code} as abandoned: {e}")
+            return False
 
     def _create_game_result_sync(self, game, winner, loser, winner_time, difficulty, result_type='completion'):
         """Synchronous helper to create a GameResult record.

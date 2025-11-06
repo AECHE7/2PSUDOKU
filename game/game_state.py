@@ -380,42 +380,41 @@ class GameStateManager:
         try:
             # Check if game is in progress
             if state.status != GameStatus.IN_PROGRESS:
-                logger.error(f"Move validation failed: game status is {state.status}")
+                logger.warning(f"[Player {player_id}] Cannot move: game status is {state.status.value}")
                 return False
-
 
             # Check if player is in game
             if player_id not in state.players:
-                logger.error(f"Move validation failed: player {player_id} not in game")
+                logger.warning(f"Move rejected: player {player_id} not in game")
                 return False
 
             player_state = state.players[player_id]
             if not player_state:
-                logger.error("Move validation failed: no player state")
+                logger.warning(f"Move rejected: no state for player {player_id}")
                 return False
 
             # Check bounds
             if not (0 <= row < 9 and 0 <= col < 9):
-                logger.error(f"Move validation failed: invalid position ({row}, {col})")
+                logger.warning(f"[Player {player_id}] Invalid position: ({row}, {col})")
                 return False
             
             if not (1 <= value <= 9):
-                logger.error(f"Move validation failed: invalid value {value}")
+                logger.warning(f"[Player {player_id}] Invalid value: {value}")
                 return False
 
             # Check if cell is already filled in puzzle (immutable)
             if not state.puzzle:
-                logger.error("Move validation failed: no puzzle state")
+                logger.error("Critical: no puzzle state available")
                 return False
 
             if state.puzzle[row][col] != 0:
-                logger.error(f"Move validation failed: cell ({row}, {col}) is immutable")
+                logger.debug(f"[Player {player_id}] Cell ({row}, {col}) is prefilled - ignoring")
                 return False
 
             # Get current board state
             board = player_state.board
             if not board:
-                logger.error("Move validation failed: no board state")
+                logger.error(f"Critical: no board state for player {player_id}")
                 return False
 
             # Check if cell is already filled with the same value
@@ -425,13 +424,13 @@ class GameStateManager:
             # Check row - exclude current cell
             for c in range(9):
                 if c != col and board[row][c] == value:
-                    logger.error(f"Move validation failed: {value} already in row {row}")
+                    logger.debug(f"[Player {player_id}] {value} already in row {row}")
                     return False
 
             # Check column - exclude current cell
             for r in range(9):
                 if r != row and board[r][col] == value:
-                    logger.error(f"Move validation failed: {value} already in column {col}")
+                    logger.debug(f"[Player {player_id}] {value} already in column {col}")
                     return False
 
             # Check 3x3 box - exclude current cell
@@ -440,7 +439,7 @@ class GameStateManager:
             for r in range(box_row, box_row + 3):
                 for c in range(box_col, box_col + 3):
                     if (r != row or c != col) and board[r][c] == value:
-                        logger.error(f"Move validation failed: {value} already in 3x3 box at ({box_row}, {box_col})")
+                        logger.debug(f"[Player {player_id}] {value} already in 3x3 box")
                         return False
 
             return True
