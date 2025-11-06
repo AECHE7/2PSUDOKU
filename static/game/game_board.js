@@ -412,6 +412,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Also listen for 'input' events for immediate validation (as user types)
+  document.addEventListener('input', (e) => {
+    if (!e.target.classList.contains('cell-input') || e.target.disabled) return;
+
+    console.log('Input event triggered (immediate)');
+
+    // Trigger the same validation logic as change event
+    const changeEvent = new Event('change');
+    e.target.dispatchEvent(changeEvent);
+  });
+
   function handlePlayerMove(row, col, value, cellElement) {
     // Clear previous validation
     cellElement.classList.remove('correct', 'incorrect', 'invalid');

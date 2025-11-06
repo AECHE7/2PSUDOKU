@@ -364,8 +364,25 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def handle_play_again(self, message):
         """Handle play again request."""
         try:
+            # Extract difficulty with fallback
+            difficulty = getattr(message, 'difficulty', None)
+            if not difficulty:
+                # Try to get from data dict
+                difficulty = message.data.get('difficulty') if hasattr(message, 'data') else None
+            
+            # Use current game difficulty as fallback
+            if not difficulty and self.game_session:
+                difficulty = self.game_session.difficulty
+            
+            # Final fallback to medium
+            if not difficulty:
+                difficulty = 'medium'
+                logger.warning(f"No difficulty provided for play_again, using default: {difficulty}")
+            
+            logger.info(f"Creating rematch with difficulty: {difficulty}")
+            
             # Create new game
-            new_game_code = await self.create_rematch_game(message.difficulty)
+            new_game_code = await self.create_rematch_game(difficulty)
 
             # Broadcast new game to group
             await self.channel_layer.group_send(
@@ -374,7 +391,7 @@ class GameConsumer(AsyncWebsocketConsumer):
                     'type': 'game_event',
                     'event_type': 'new_game_created',
                     'game_code': new_game_code,
-                    'difficulty': message.difficulty,
+                    'difficulty': difficulty,
                 }
             )
 
