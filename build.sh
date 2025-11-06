@@ -43,4 +43,8 @@ python manage.py showmigrations game
 echo "🔧 Running emergency schema fixer..."
 python ensure_db_schema.py
 
+# Force add result_type column
+echo "🔨 Force adding result_type column..."
+python force_add_result_type.py
+
 echo "✅ Build complete!"
