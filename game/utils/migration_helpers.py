@@ -14,7 +14,10 @@ def has_result_type_column():
         return cursor.fetchone()[0]
 
 def create_game_result_safely(game, winner, loser, winner_time, difficulty, result_type='completion'):
-    """Create GameResult record with fallback for missing result_type column."""
+    """Create GameResult record with fallback for missing result_type column.
+    
+    Note: This fallback can be removed once migration 0005_ensure_result_type
+    has been applied to all environments (especially production)."""
     from django.db import transaction, IntegrityError
     from .models import GameResult
     
