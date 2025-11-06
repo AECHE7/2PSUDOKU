@@ -1,4 +1,11 @@
-"""Migration helper to handle missing result_type column gracefully."""
+"""Migration helper to handle missing result_type column gracefully.
+
+CRITICAL: This file ensures GameResult creation works even if the result_type
+column is missing in the database. It will automatically add the column if needed.
+
+Last updated: 2025-11-06
+Status: PRODUCTION READY
+"""
 import logging
 from django.db import connection, transaction, IntegrityError
 from django.utils import timezone
